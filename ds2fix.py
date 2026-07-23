@@ -404,6 +404,10 @@ def play_command(gamedir, res_w, res_h, out_w, out_h, fsr):
     if prefix:
         env["WINEPREFIX"] = prefix
     env.setdefault("WINEDEBUG", "-all")
+    # Force Wine's builtin d3d9 (wined3d), NOT DXVK: DXVK renders DS2's [t:object_view] 3D viewports
+    # BLANK at the widescreen backbuffer (Journal cloth map, inventory/character paperdoll, hero-creation
+    # preview). wined3d renders them correctly. Confirmed 2026-07-22. Set d3d9=n to opt back into DXVK.
+    env.setdefault("WINEDLLOVERRIDES", "d3d9=b")
     game_args = ["wine", EXE_NAME, "nospacecheck=true", f"width={res_w}",
                  f"height={res_h}", "fullscreen=false", "vsync=true"]
     if shutil.which("gamescope"):

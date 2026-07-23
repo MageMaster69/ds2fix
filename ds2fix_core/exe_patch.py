@@ -69,6 +69,19 @@ def patch_exe(orig, dst=None, menu169=True, choke=True, ws169=True, res_w=1920, 
     elif d[_win_fo] == 0xca:
         log('OK: window already non-resizable')
 
+    # ---- PATCH MPBTN: enable the Multiplayer button. UIFrontend::TransitionToMain (@0x44c2d3)
+    # UNCONDITIONALLY calls UIButton::DisableButton on "button_multiplayer" every time the main menu
+    # shows (GPG hard-disabled MP in the retail build). NOP that 5-byte call (@0x44c37a) so the button
+    # stays enabled -> LAN + Internet(direct-IP) multiplayer become reachable. No GameSpy needed for those.
+    _mp_fo = 0x44c37a - 0x400000
+    if bytes(d[_mp_fo:_mp_fo+5]) == bytes([0xe8,0x31,0xa0,0x31,0x00]):
+        d[_mp_fo:_mp_fo+5] = b'\x90\x90\x90\x90\x90'
+        log('OK: Multiplayer button enabled (DisableButton NOP @0x44c37a)')
+    elif bytes(d[_mp_fo:_mp_fo+5]) == bytes([0x90,0x90,0x90,0x90,0x90]):
+        log('OK: Multiplayer button already enabled')
+    else:
+        log(f'WARN: MP-button site unexpected ({bytes(d[_mp_fo:_mp_fo+5]).hex()}); skipped')
+
     # ---- parse PE headers ----
     pe = struct.unpack('<I', d[0x3c:0x40])[0]
     nsec = struct.unpack('<H', d[pe+6:pe+8])[0]
