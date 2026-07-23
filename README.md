@@ -5,7 +5,7 @@ fullscreen, campaign difficulties unlocked, and a "ds2fix" version label — via
 + data-side tank mods. Ships as a **cross-platform CLI + GUI** (Linux and Windows). Does **not** distribute
 the game; it patches an existing install in place, always from a pristine base.
 
-Status: **v0.1.5 (working)** — everything below verified in-game (on Linux/Wine; Windows shares the same
+Status: **v0.1.6 (working)** — everything below verified in-game (on Linux/Wine; Windows shares the same
 patcher core, with a native launcher).
 
 ## What works
@@ -24,6 +24,9 @@ patcher core, with a native launcher).
 | In-game 3D viewports render at widescreen (Journal cloth map, character/inventory paperdoll, hero-creation preview) | force wined3d over DXVK — DXVK blanks these at high res |
 | Multiplayer button re-enabled (LAN + direct-IP) | `DisableButton` NOP (exe) |
 | gamescope cleaned up when the game exits (no lingering compositor) | supervised launcher (`play-ds2.sh` / `ds2fix play`) |
+| Large-Address-Aware (2GB→4GB) so HD-texture mods don't OOM-crash | PE-header bit (exe) |
+| Uncapped framerate (DS2 hard-caps at 75) | `maxfps` launch arg (default 120; `--maxfps 0` = uncapped) |
+| Optional mod installer (Storage Vault, HD Textures) — SHA512-verified, non-bundled | `ds2fix mods` + GUI |
 | Configurable render + output resolution | `RES_W/RES_H`, `OUT_W/OUT_H` env |
 | Configurable UI scale (menus + ESC menu) | `DS2_UISCALE` env (default 1.5) |
 | Fullscreen, upscaled to monitor | `ds2fix.sh` / `play-ds2.sh` (gamescope + FSR) |
@@ -43,7 +46,11 @@ ds2fix play                     # patch (16:9) + launch — 1920x1080, fullscree
 ds2fix play --res 1440x1080     # 4:3 render (Linux: gamescope pillarboxes)
 ds2fix play --out 3840x2160     # 4K output (Linux gamescope)
 ds2fix play --no-menu169        # native 800x600 menu (restores the 3D model previews)
+ds2fix play --maxfps 0          # uncap the framerate (DS2 defaults to 75; default here is 120)
 ds2fix patch --scale 1.75       # patch only, bigger menus + ESC menu (default 1.5)
+ds2fix mods list                # optional mods: what's available + installed
+ds2fix mods install hd-textures # install a downloaded, SHA512-verified mod into Resources/
+ds2fix mods remove hd-textures  # cleanly uninstall it
 ds2fix restore                  # revert exe+tank to pristine
 ds2fix backup-saves             # back up your save games now
 ds2fix restore-saves            # restore saves from the latest backup
@@ -70,6 +77,20 @@ Steam libraries, Heroic (GOG-on-Linux) install records, and a bounded scan of co
 Every `patch`/`play` **idempotently rebuilds from a pristine backup**
 (captured on first run into `*.ds2fix-pristine`), so it's always reproducible and never patches an
 already-patched file. On Linux it launches fullscreen via **gamescope + FSR**; on Windows, native fullscreen.
+
+### Optional mods (non-bundled)
+
+ds2fix can install a couple of community mods, but it **does not distribute them** — you download the file
+yourself (Nexus login required), and ds2fix locates it, **SHA512-verifies** it, copies the `.ds2res` into
+`Resources/`, and tracks it for clean removal (`<gamedir>/.ds2fix-mods.json`). Supported:
+
+- **Storage Vault** ([#26](https://www.nexusmods.com/dungeonsiegeii/mods/26)) — bigger stash + gold cap.
+- **HD Textures** ([#29](https://www.nexusmods.com/dungeonsiegeii/mods/29)) — x4 AI-upscaled world art
+  (the Large-Address-Aware patch is what keeps this from OOM-crashing).
+
+Download into `~/Downloads`, then `ds2fix mods install <name>` (auto-finds it) — or point at it with
+`--from <file>`. ⚠️ Installing/removing a mod changes DS2's save "content footprint", so existing saves can
+temporarily hide from the load list until the footprint matches again (the files are never lost).
 
 ### Get the binaries
 

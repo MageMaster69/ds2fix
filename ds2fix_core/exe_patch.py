@@ -18,7 +18,8 @@ def patch_exe(orig, dst=None, menu169=True, choke=True, ws169=True, res_w=1920, 
     Returns the patched bytes. Raises AssertionError if a patch site doesn't match (wrong/patched exe)."""
     MENU_169, CHOKE, WS169 = menu169, choke, ws169
     version = version or __version__
-    d = bytearray(open(orig, 'rb').read())
+    with open(orig, 'rb') as _f:
+        d = bytearray(_f.read())
 
     # ---- PATCH 0: menu version label "$MSG$Version - %S" -> "$MSG$ds2fix <version>" (idempotent).
     # Fixed slot: len("$MSG$ds2fix <version>") must be <= len("$MSG$Version - %S"); if the version is
@@ -84,6 +85,19 @@ def patch_exe(orig, dst=None, menu169=True, choke=True, ws169=True, res_w=1920, 
 
     # ---- parse PE headers ----
     pe = struct.unpack('<I', d[0x3c:0x40])[0]
+
+    # ---- PATCH LAA: Large-Address-Aware. DS2 is a 32-bit exe capped at 2GB of address space; set
+    # IMAGE_FILE_LARGE_ADDRESS_AWARE (0x0020) in the COFF Characteristics so it can use up to 4GB. This
+    # matters once HD texture mods are installed (x4 upscales ~= 16x memory) — without it they OOM-crash
+    # on larger areas. Pure PE-header bit; reversible; works under Wine on a 64-bit host too.
+    _chr_fo = pe + 22
+    _chars = struct.unpack('<H', d[_chr_fo:_chr_fo+2])[0]
+    if not (_chars & 0x0020):
+        struct.pack_into('<H', d, _chr_fo, _chars | 0x0020)
+        log('OK: Large-Address-Aware enabled (2GB -> 4GB; for HD texture mods)')
+    else:
+        log('OK: already Large-Address-Aware')
+
     nsec = struct.unpack('<H', d[pe+6:pe+8])[0]
     optsz = struct.unpack('<H', d[pe+20:pe+22])[0]
     opt = pe + 24

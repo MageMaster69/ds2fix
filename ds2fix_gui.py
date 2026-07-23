@@ -49,6 +49,7 @@ class App:
         self.out = tk.StringVar(value="2560x1440")
         self.menu169 = tk.BooleanVar(value=True)
         self.fsr = tk.BooleanVar(value=True)
+        self.maxfps = tk.StringVar(value="120")
         ttk.Label(grid, text="Render resolution").grid(row=0, column=0, sticky="w")
         ttk.Combobox(grid, textvariable=self.res, width=12, values=RENDER_RESOLUTIONS
                      ).grid(row=0, column=1, sticky="w", padx=6)
@@ -56,6 +57,8 @@ class App:
             row=0, column=2, sticky="w")
         ttk.Label(grid, text="UI scale").grid(row=1, column=0, sticky="w")
         ttk.Entry(grid, textvariable=self.scale, width=8).grid(row=1, column=1, sticky="w", padx=6)
+        ttk.Label(grid, text="Max FPS (0 = uncapped; DS2 default 75)").grid(row=1, column=2, sticky="w")
+        ttk.Entry(grid, textvariable=self.maxfps, width=6).grid(row=1, column=3, sticky="w", padx=6)
         if not core.IS_WINDOWS:
             ttk.Label(grid, text="Output (monitor)").grid(row=2, column=0, sticky="w")
             ttk.Combobox(grid, textvariable=self.out, width=12, values=OUTPUT_RESOLUTIONS
@@ -83,6 +86,22 @@ class App:
         self.btn_rsav = ttk.Button(srow, text="Restore latest", command=lambda: self.run(self._restore_saves))
         self.btn_bkup.pack(side="left", padx=4)
         self.btn_rsav.pack(side="left", padx=4)
+
+        # --- optional mods (at the bottom; non-bundled, installed from a downloaded file) ---
+        from ds2fix_core import mods as modmod
+        self._modmod = modmod
+        modf = ttk.LabelFrame(root, text="Optional mods  (download from Nexus, then Install — verified by SHA512)")
+        modf.pack(fill="x", **pad)
+        mrow = ttk.Frame(modf); mrow.pack(fill="x", padx=6, pady=6)
+        self.modname = tk.StringVar(value=next(iter(modmod.REGISTRY)))
+        ttk.Combobox(mrow, textvariable=self.modname, width=14, state="readonly",
+                     values=list(modmod.REGISTRY)).pack(side="left")
+        self.btn_modinstall = ttk.Button(mrow, text="Install…", command=self._mod_install_click)
+        self.btn_modremove = ttk.Button(mrow, text="Remove", command=lambda: self.run(self._mod_remove))
+        self.btn_modlist = ttk.Button(mrow, text="List", command=lambda: self.run(self._mod_list))
+        self.btn_modinstall.pack(side="left", padx=4)
+        self.btn_modremove.pack(side="left", padx=4)
+        self.btn_modlist.pack(side="left", padx=4)
 
         # --- log ---
         self.log = scrolledtext.ScrolledText(root, height=12, state="disabled", wrap="word")
@@ -116,7 +135,7 @@ class App:
 
     def _set_buttons(self, enabled):
         for b in (self.btn_patch, self.btn_playonly, self.btn_play, self.btn_restore,
-                  self.btn_bkup, self.btn_rsav):
+                  self.btn_bkup, self.btn_rsav, self.btn_modinstall, self.btn_modremove, self.btn_modlist):
             b.configure(state="normal" if enabled else "disabled")
 
     def refresh_state(self):
@@ -164,15 +183,21 @@ class App:
     def _restore(self):
         core.do_restore(self._gd(), log=self._log)
 
+    def _maxfps(self):
+        try:
+            return max(0, int(self.maxfps.get()))
+        except ValueError:
+            return 120
+
     def _play(self):
         gd = self._gd(); rw, rh = self._res(self.res); ow, oh = self._res(self.out)
         core.do_patch(gd, rw, rh, float(self.scale.get()), self.menu169.get(), log=self._log)
-        core.do_play(gd, rw, rh, ow, oh, self.fsr.get(), spawn=True, log=self._log)
+        core.do_play(gd, rw, rh, ow, oh, self.fsr.get(), self._maxfps(), spawn=True, log=self._log)
         self._log("launched — the game window should appear shortly.")
 
     def _play_only(self):
         gd = self._gd(); rw, rh = self._res(self.res); ow, oh = self._res(self.out)
-        core.do_play(gd, rw, rh, ow, oh, self.fsr.get(), spawn=True, log=self._log)
+        core.do_play(gd, rw, rh, ow, oh, self.fsr.get(), self._maxfps(), spawn=True, log=self._log)
         self._log("launched (no re-patch) — the game window should appear shortly.")
 
     def _backup_saves(self):
@@ -181,6 +206,20 @@ class App:
 
     def _restore_saves(self):
         core.restore_saves(self._gd(), log=self._log)
+
+    # ---- mods (file dialog runs on the main thread, install/remove on a worker) ----
+    def _mod_install_click(self):
+        path = filedialog.askopenfilename(
+            title="Select the downloaded mod file (.ds2res or .zip) — or Cancel to auto-search",
+            filetypes=[("DS2 mod", "*.ds2res *.zip"), ("All files", "*")])
+        self.run(lambda: self._modmod.install(self._gd(), self.modname.get(),
+                                              src=path or None, force=False, log=self._log))
+
+    def _mod_remove(self):
+        self._modmod.remove(self._gd(), self.modname.get(), log=self._log)
+
+    def _mod_list(self):
+        self._modmod.print_list(self._gd(), log=self._log)
 
 
 def main():

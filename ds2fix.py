@@ -376,6 +376,9 @@ def do_info(gamedir, log=print):
     log(f"backup   : exe={'yes' if pexe.exists() else 'no'}  tank={'yes' if ptank.exists() else 'no'}")
     log(f"saves    : {docs / 'Save' if docs else '(save folder not found)'}")
     log(f"save bkps: {len(backups)}" + (f" (latest {backups[-1].name})" if backups else ""))
+    from ds2fix_core import mods as _mods
+    inst = _mods.installed_mods(gamedir)
+    log(f"mods     : {', '.join(inst) if inst else 'none'}")
     log(f"platform : {'windows (native launch)' if IS_WINDOWS else 'linux (wine/gamescope launch)'}")
 
 
@@ -392,13 +395,14 @@ def _wineprefix_for(gamedir):
     return None
 
 
-def play_command(gamedir, res_w, res_h, out_w, out_h, fsr):
+def play_command(gamedir, res_w, res_h, out_w, out_h, fsr, maxfps=120):
     """Build the launch (cmd, env, note) for the current OS. Native fullscreen on Windows;
-    gamescope+FSR (or plain windowed) via Wine on Linux."""
+    gamescope+FSR (or plain windowed) via Wine on Linux. `maxfps` uncaps DS2's default 75fps limit
+    (0 = fully uncapped)."""
     env = dict(os.environ)
     if IS_WINDOWS:
         cmd = [str(gamedir / EXE_NAME), "nospacecheck=true", f"width={res_w}",
-               f"height={res_h}", "fullscreen=true", "vsync=true"]
+               f"height={res_h}", "fullscreen=true", "vsync=true", f"maxfps={maxfps}"]
         return cmd, env, "native fullscreen"
     prefix = _wineprefix_for(gamedir)
     if prefix:
@@ -409,7 +413,7 @@ def play_command(gamedir, res_w, res_h, out_w, out_h, fsr):
     # preview). wined3d renders them correctly. Confirmed 2026-07-22. Set d3d9=n to opt back into DXVK.
     env.setdefault("WINEDLLOVERRIDES", "d3d9=b")
     game_args = ["wine", EXE_NAME, "nospacecheck=true", f"width={res_w}",
-                 f"height={res_h}", "fullscreen=false", "vsync=true"]
+                 f"height={res_h}", "fullscreen=false", "vsync=true", f"maxfps={maxfps}"]
     if shutil.which("gamescope"):
         gs = ["gamescope", "-W", str(out_w), "-H", str(out_h), "-w", str(res_w), "-h", str(res_h)]
         if fsr:
@@ -482,8 +486,8 @@ def _supervise_gamescope(proc, prefix, log):
     _teardown_gamescope(proc, prefix, log)
 
 
-def do_play(gamedir, res_w, res_h, out_w, out_h, fsr, spawn=False, log=print):
-    cmd, env, note = play_command(gamedir, res_w, res_h, out_w, out_h, fsr)
+def do_play(gamedir, res_w, res_h, out_w, out_h, fsr, maxfps=120, spawn=False, log=print):
+    cmd, env, note = play_command(gamedir, res_w, res_h, out_w, out_h, fsr, maxfps)
     log(f"launching ({note}) ...")
     uses_gamescope = (not IS_WINDOWS) and cmd and cmd[0] == "gamescope"
     if not uses_gamescope:   # native (Windows) / plain windowed — nothing to supervise
@@ -542,6 +546,19 @@ def build_parser():
                          help="monitor/output resolution for gamescope (Linux, default 2560x1440)")
     sp_play.add_argument("--no-fsr", action="store_true", help="disable FSR upscaling (Linux)")
     sp_play.add_argument("--no-patch", action="store_true", help="launch only, skip re-patching")
+    sp_play.add_argument("--maxfps", type=int, default=int(os.environ.get("DS2_MAXFPS", "120")),
+                         help="frame cap (DS2 defaults to 75; 0 = uncapped)")
+
+    # optional, non-bundled mods (installed from a file you downloaded; verified by SHA512).
+    sp_mods = sub.add_parser("mods", help="list/install/remove optional mods (Storage Vault, HD Textures)")
+    msub = sp_mods.add_subparsers(dest="modcmd", required=True)
+    msub.add_parser("list", help="show available + installed mods")
+    mi = msub.add_parser("install", help="install a mod from a downloaded file")
+    mi.add_argument("name", help="mod name (see `ds2fix mods list`)")
+    mi.add_argument("--from", dest="src", help="path to the downloaded file (else search common folders)")
+    mi.add_argument("--force", action="store_true", help="install even if SHA512 isn't in the known-good list")
+    mr = msub.add_parser("remove", help="remove an installed mod")
+    mr.add_argument("name", help="mod name")
     return p
 
 
@@ -569,7 +586,15 @@ def main(argv=None):
     elif args.cmd == "play":
         if not args.no_patch:
             do_patch(gamedir, args.res[0], args.res[1], args.scale, not args.no_menu169)
-        do_play(gamedir, args.res[0], args.res[1], args.out[0], args.out[1], not args.no_fsr)
+        do_play(gamedir, args.res[0], args.res[1], args.out[0], args.out[1], not args.no_fsr, args.maxfps)
+    elif args.cmd == "mods":
+        from ds2fix_core import mods as _mods
+        if args.modcmd == "list":
+            _mods.print_list(gamedir)
+        elif args.modcmd == "install":
+            _mods.install(gamedir, args.name, src=args.src, force=args.force)
+        elif args.modcmd == "remove":
+            _mods.remove(gamedir, args.name)
 
 
 if __name__ == "__main__":
