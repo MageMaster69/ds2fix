@@ -408,10 +408,16 @@ def play_command(gamedir, res_w, res_h, out_w, out_h, fsr, maxfps=120):
     if prefix:
         env["WINEPREFIX"] = prefix
     env.setdefault("WINEDEBUG", "-all")
-    # Force Wine's builtin d3d9 (wined3d), NOT DXVK: DXVK renders DS2's [t:object_view] 3D viewports
-    # BLANK at the widescreen backbuffer (Journal cloth map, inventory/character paperdoll, hero-creation
-    # preview). wined3d renders them correctly. Confirmed 2026-07-22. Set d3d9=n to opt back into DXVK.
-    env.setdefault("WINEDLLOVERRIDES", "d3d9=b")
+    # Renderer: default to Wine's builtin d3d9 (wined3d). Historically DXVK v2.6.2 rendered DS2's
+    # [t:object_view] 3D viewports BLANK at the widescreen backbuffer (Journal cloth map, paperdoll,
+    # hero preview); wined3d renders them. RE-TESTED 2026-07-23: DXVK v2.7.1 now renders those viewports
+    # correctly, so DXVK is a viable opt-in for its performance. It stays OPT-IN (not the default) only
+    # because the cloth Map tab under DXVK hasn't been re-verified yet. Opt in by dropping a DXVK
+    # d3d9.dll into the game dir, or forcing DS2_RENDERER=dxvk (needs that dll present).
+    _renderer = env.get("DS2_RENDERER", "").lower()
+    _have_dxvk_dll = (gamedir / "d3d9.dll").exists()
+    _use_dxvk = _renderer == "dxvk" or (_renderer != "wined3d" and _have_dxvk_dll)
+    env.setdefault("WINEDLLOVERRIDES", "d3d9=n" if _use_dxvk else "d3d9=b")
     game_args = ["wine", EXE_NAME, "nospacecheck=true", f"width={res_w}",
                  f"height={res_h}", "fullscreen=false", "vsync=true", f"maxfps={maxfps}"]
     if shutil.which("gamescope"):

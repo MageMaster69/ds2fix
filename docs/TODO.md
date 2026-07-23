@@ -36,10 +36,33 @@
 2. **Re-enable the Journal → Map cloth-map scaling** — now that frontend object_view scaling is proven to
    work on wined3d, re-test the backend map targets (currently commented out in `_target_list`) and confirm
    the cloth map scales cleanly (the "out of line" symptom was the same object_view offset just fixed).
-3. **Scale in-game panels** (inventory / character / spellbook / trade paperdoll) — the same object_view
-   scaling should now place the in-game paperdoll correctly; currently native/small. Verify + enable.
-4. **Re-test a newer DXVK** — if a current build renders the object_views, switch back for its performance.
-5. **Windows end-to-end test** — patcher core is cross-platform; verify a real Windows run.
+3. **Scale in-game panels** (inventory / character / spellbook / trade) — *investigated 2026-07-23.* The
+   panels render at native 800×600 size, anchored top-left (functional, just small). They live in
+   `character_awp.gas` (204 KB) + `character_*_tab.gas` + `gold_trade.gas`, all currently excluded from
+   `_target_list` (the `in_game`/`panel` filter). Scaling is NOT the clean win it is for menus: the item
+   **grid cells are fixed-size** (item icons are fixed-pixel textures the engine draws), so scaling the panel
+   rect enlarges the frame but the icon grid won't follow — the classic DS2 in-game-UI-scaling wall. Needs a
+   grid-aware transform, not a blanket rect scale. (Good news for testing: xdotool `i`/`j` keys DO reach
+   gameplay, so panels can be driven + screenshotted.)
+4. **First party portrait renders wrong** — *diagnosed 2026-07-23.* Member #1's HUD portrait shows a
+   featureless green blob instead of a face; members #2–8 render correctly. Findings: it is **renderer-
+   independent** (identical under wined3d AND DXVK v2.7.1), **member-1-specific**, and does **not** follow
+   party selection (selecting #2 gave #2 a guard icon but #1 stayed green). Member #1's slot
+   (`awp_itemslot_portrait_1`, rect 6,14,51,59) is defined in **stock `character_awp.gas` — a file we do NOT
+   edit** — so it's not caused by our patch. Notable: `awp_itemslot_portrait_1` **lacks the `index`/`layer`
+   binding** that `_2`..`_8` carry (`i index = 1; layer = member_2;`). Candidate fix to test: add
+   `index = 0; layer = member_1;` to slot 1 (requires adding `character_awp.gas` to the tank targets). May
+   instead be a wine portrait-render-target quirk. Cosmetic (the character is fully in the party + playable).
+5. **DXVK for performance** — *re-tested 2026-07-23: DXVK v2.7.1 renders the `object_view` viewports
+   correctly* (the old blank-viewport bug was specific to v2.6.2). Verified: main-menu preview, journal, and
+   gameplay all render under DXVK v2.7.1 (from `GE-Proton10-34/.../dxvk/i386-windows/d3d9.dll`). The launcher
+   now supports it as an **opt-in** (`DS2_RENDERER=dxvk`, or just drop a DXVK `d3d9.dll` into the game dir);
+   wined3d stays the default. To promote DXVK to default, first re-verify the **cloth Map tab** under DXVK
+   (the one screen not yet checked — it was the original v2.6.2 casualty).
+6. **Windows end-to-end test** — patcher core is cross-platform; verify a real Windows run.
+7. **Gamescope fullscreen present flake** — on KDE Wayland `ds2fix play` intermittently hits "Compositor
+   released us but we were not acquired" and the game bounces (teardown is clean, no lingering). Windowed
+   launch is the reliable path meanwhile. Investigate gamescope flags / a windowed-fullscreen fallback.
 
 ## ⛔ Won't do / N/A
 - **#27 Aranna Legacy**, **#163 HD Cutscenes** — Broken World (v2.3) only; install is base DS2.
