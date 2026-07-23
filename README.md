@@ -5,7 +5,7 @@ fullscreen, campaign difficulties unlocked, and a "ds2fix" version label — via
 + data-side tank mods. Ships as a **cross-platform CLI + GUI** (Linux and Windows). Does **not** distribute
 the game; it patches an existing install in place, always from a pristine base.
 
-Status: **v0.1.6 (working)** — everything below verified in-game (on Linux/Wine; Windows shares the same
+Status: **v1.0 (v0.1.7, working)** — everything below verified in-game (on Linux/Wine; Windows shares the same
 patcher core, with a native launcher).
 
 ## What works
@@ -22,6 +22,8 @@ patcher core, with a native launcher).
 | Tank data mods no longer crash the game | content-integrity CRC check disabled (exe) |
 | Non-resizable window (no resize black-screen) | window-style patch (exe) |
 | In-game 3D viewports render at widescreen (Journal cloth map, character/inventory paperdoll, hero-creation preview) | force wined3d over DXVK — DXVK blanks these at high res |
+| Saves always list + load, even after re-patching or installing a mod | save content-footprint check bypassed (exe) |
+| Frontend preview models render in their panels (main-menu Continue party, hero-select paperdoll) | frontend `object_view` viewport scaled with its panel (tank) |
 | Multiplayer button re-enabled (LAN + direct-IP) | `DisableButton` NOP (exe) |
 | gamescope cleaned up when the game exits (no lingering compositor) | supervised launcher (`play-ds2.sh` / `ds2fix play`) |
 | Large-Address-Aware (2GB→4GB) so HD-texture mods don't OOM-crash | PE-header bit (exe) |
@@ -89,8 +91,9 @@ yourself (Nexus login required), and ds2fix locates it, **SHA512-verifies** it, 
   (the Large-Address-Aware patch is what keeps this from OOM-crashing).
 
 Download into `~/Downloads`, then `ds2fix mods install <name>` (auto-finds it) — or point at it with
-`--from <file>`. ⚠️ Installing/removing a mod changes DS2's save "content footprint", so existing saves can
-temporarily hide from the load list until the footprint matches again (the files are never lost).
+`--from <file>`. Installing/removing a mod changes DS2's save "content footprint", which normally hides
+existing saves from the load list — but the exe **save-footprint bypass** makes saves always list and load,
+so mods are safe to add and remove with your saves intact.
 
 ### Get the binaries
 
@@ -152,16 +155,13 @@ Env: `MENU_169` (0 disables the 16:9 menu), `RES_W`/`RES_H` (forced frontend res
 `analyzeHeadless <proj> ds2 -process DungeonSiege2.exe -noanalysis -scriptPath ghidra -postScript X.java`.
 
 ## Known issues
-- **`object_view` 3D model previews render only at an 800×600 backbuffer** — the char-select / create-hero
-  model, the inventory/character paperdoll, and the menu party preview are blank at higher resolutions.
-  World models (party, enemies) render fine; this is specific to the UI preview panels, and character
-  creation is fully functional by name/stats. **Diagnosis (extensive):** the `object_view` UI *instance* is
-  identical at 800 vs 1920 (verified by live-memory A/B diff — same rect, same `+0x78/+0x7c` dims) and the 3D
-  *scene* renders (the background fills the frame); only the character **actor is never submitted to the
-  scene draw** at high res. It is *not* the 2D UI-element cull (`FUN_0075dbc0` — NOP-tested, no effect) nor a
-  stored instance field. Fixing it needs tracing the actor-submission render call (apitrace D3D-call diff, or
-  a working debugger under non-wow64 wine — this system's wine 11 is wow64-only, so breakpoints don't fire).
-  Workaround: run the frontend at native 800×600 (`MENU_169=0`) + gamescope upscale to get the previews back.
+- **`object_view` 3D previews — RESOLVED.** The old symptom (blank preview panels / model stuck at the
+  800×600 corner) turned out to be two separate causes, both now fixed: (1) **DXVK** blanked the viewport at
+  high res — fixed by forcing **wined3d**; (2) the viewport **rect** was left at its native 800×600 position
+  while the panel scaled to 1920, so the model drew in the wrong corner — fixed by scaling the frontend
+  `object_view` rect with its panel (safe to recompile the frontend now that the save-footprint bypass keeps
+  the party list visible). The main-menu Continue party model and the hero-select paperdoll now render on
+  their pedestals. (In-game inventory/character paperdolls: same mechanism, enable + verify — see TODO.)
 - gamescope on KDE Wayland intermittently fails to *present* ("Compositor released us but we were not
   acquired") — usually resolves on alt-tab / relaunch. (Separately, gamescope no longer *lingers* after
   the game exits — the launcher supervises the DS2 process and tears the gamescope tree + wineserver down
@@ -169,7 +169,7 @@ Env: `MENU_169` (0 disables the 16:9 menu), `RES_W`/`RES_H` (forced frontend res
 
 ## Roadmap (backlog)
 - Windows-compatible packaging (patcher is Python/cross-platform; launcher is Linux/gamescope)
-- `object_view` model previews at high res (needs render-call tracing — see Known issues)
+- Re-enable Journal→Map cloth-map scaling + in-game paperdoll scaling (same object_view fix, now proven)
 - Co-op multiplayer revival (direct-IP/LAN over VPN; GameSpy master-server replacement) — GameSpy is dead
 
 ---

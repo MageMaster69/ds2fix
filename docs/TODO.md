@@ -1,5 +1,20 @@
 # DS2Fix — status & roadmap
 
+## ✅ Done (v0.1.7)
+- **Save content-footprint bypass** — the v1.0 blocker, solved. DS2 stamps every save with a `content_crc`
+  (a hash of the installed resource set) and silently HIDES + refuses saves whose crc no longer matches the
+  install; re-patching the tank or installing a data mod changes the crc, so existing saves would "disappear/
+  reappear". `IsContentCrcAcceptable` (FUN_004139d0) is now forced to always accept (both the list-summary and
+  load-summary readers go through it; MP content-matching is a separate path, untouched). **Proven live:** the
+  Thomas party listed *and* loaded into gameplay after a real footprint change (tank crc `8a7b6adb`→`e67d647d`)
+  that would otherwise have hidden it.
+- **Frontend 3D preview models now render in their panels** (object_view offset, was problem #3). The
+  main-menu Continue party model and the Single-Player hero-select paperdoll used to draw at the native
+  800×600 top-left corner while their panels scaled to 1920; the viewport rect is now scaled with the panel
+  so the model sits on its pedestal. Unblocked by two earlier fixes: wined3d (scaling no longer blanks it) and
+  the footprint bypass (the frontend `dir.lqd22` recompile no longer hides the party list). Verified live on
+  the main menu + Choose-Hero screen.
+
 ## ✅ Done (v0.1.6)
 - Widescreen HUD anchoring, native 16:9 menus, frontend + ESC-menu scaling, configurable UI scale/res.
 - All campaign difficulties unlocked; data-mod support (content CRC disabled); non-resizable window;
@@ -15,21 +30,16 @@
 - Save auto-backup + install pinning; cross-platform CLI + GUI + PyInstaller packaging; unit tests (`tests/`).
 
 ## 🟡 Open / optional
-1. **Save-footprint bypass** *(deferred by choice — not blocking play)*. DS2 hides saves whose content
-   footprint no longer matches the install, so re-patching or installing a mod hides existing saves until
-   the footprint matches again. Disabling that check in the exe (like the tank-CRC bypass) makes saves
-   **always** show and re-patching/mods safe — and lets the in-game version label update freely. Pick this
-   up before leaning on the mod installer.
-2. **Test normal co-op multiplayer** — host a game + join via **LAN** and **direct-IP** (the MP button is
+1. **Test normal co-op multiplayer** — host a game + join via **LAN** and **direct-IP** (the MP button is
    already unlocked; DS2 MP is peer-to-peer over DirectPlay8). *No dedicated server* — DS2 has no such
    concept (host-based P2P), so that idea is dropped.
-3. **object_view content offset** — 3D models/map render low-and-left inside their frame at the 1920
-   backbuffer (backbuffer-tied, not our canvas patch). Cosmetic. Deep viewport RE. Blocks #4.
-4. **Map scale + center** — re-enable once #3 is solved (scaling renders but goes "out of line").
-5. **Scale in-game panels** (inventory / character / spellbook / trade) — currently native/small; 2D parts
-   scale cleanly, paperdoll shows the #3 offset.
-6. **Re-test a newer DXVK** — if it renders the object_views, switch back for its performance.
-7. **Windows end-to-end test** — patcher core is cross-platform; verify a real Windows run.
+2. **Re-enable the Journal → Map cloth-map scaling** — now that frontend object_view scaling is proven to
+   work on wined3d, re-test the backend map targets (currently commented out in `_target_list`) and confirm
+   the cloth map scales cleanly (the "out of line" symptom was the same object_view offset just fixed).
+3. **Scale in-game panels** (inventory / character / spellbook / trade paperdoll) — the same object_view
+   scaling should now place the in-game paperdoll correctly; currently native/small. Verify + enable.
+4. **Re-test a newer DXVK** — if a current build renders the object_views, switch back for its performance.
+5. **Windows end-to-end test** — patcher core is cross-platform; verify a real Windows run.
 
 ## ⛔ Won't do / N/A
 - **#27 Aranna Legacy**, **#163 HD Cutscenes** — Broken World (v2.3) only; install is base DS2.
@@ -38,7 +48,8 @@
 - **Pre-rendered cutscenes** stay 4:3 (engine limit; would need re-encoding the video files).
 
 ## The "done" line
-The project **meets its goal today** — a fully playable, widescreen, fullscreen DS2 with working saves,
-menus, map, and 3D models, plus optional HD-texture/storage mods (LAA-backed) and an uncapped framerate.
-The last thing that turns "works" into "robust" is **#1 (save-footprint bypass)** — after that it's **v1.0**.
-Everything else (#3–#7) is genuine optional polish.
+**v1.0 reached.** The two things that stood between "works" and "robust" — the save content-footprint bypass
+and the frontend 3D preview offset — are both fixed and verified live. DS2 is fully playable and widescreen:
+working + always-visible saves (re-patch/mod safe), native 16:9 menus with correctly-placed preview models,
+journal map, LAA-backed HD-texture/storage mods, and an uncapped framerate. Everything left (#1–#5) is
+optional polish or verification — nothing blocks a v1.0 tag.

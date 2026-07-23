@@ -216,7 +216,13 @@ def _edit_one(d, files, offs, path, scale, version, write_end, log):
     else:
         if path == MP_PROVIDER:
             u = customize_mp_provider(u)
-        u2 = scale_center(u, scale, iw, ih)
+        # Scale the frontend 3D preview viewports (Continue party model, hero-select paperdoll, etc.) with
+        # their panels. This was long kept verbatim for two reasons, both now resolved: (1) under DXVK the
+        # scaled viewport rendered blank — fixed by forcing wined3d; (2) editing a frontend interface forces a
+        # dir.lqd22 recompile that used to hide the save party list (bug-1) — neutralised by the exe
+        # save-footprint bypass. Result: the preview model renders in its panel instead of at the native
+        # 800x600 corner. See docs/MAP_PORTING_TODO.md and the object_view notes in scale_center().
+        u2 = scale_center(u, scale, iw, ih, scale_object_view=True)
     if 'frontend_help' in path:   # tight slot: drop center_height (minor vertical-align) to fit
         u2 = re.sub(rb'[ \t]*center_height = true;\r?\n', b'', u2)
     blocks = [u2[i:i+BLK] for i in range(0, len(u2), BLK)] or [b'']

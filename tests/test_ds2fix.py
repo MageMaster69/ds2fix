@@ -137,6 +137,17 @@ class TestExePatch(unittest.TestCase):
         again = exe_patch.patch_exe(str(_PRISTINE_EXE), None, log=lambda m: None)
         self.assertEqual(bytes(patched), bytes(again))
 
+    def test_save_footprint_check_bypassed(self):
+        # IsContentCrcAcceptable (FUN_004139d0) must be forced to "mov al,1 ; ret 4" so saves always
+        # list/load regardless of the install's content signature.
+        pristine = bytearray(_PRISTINE_EXE.read_bytes())
+        fo = 0x4139d0 - 0x400000
+        self.assertEqual(bytes(pristine[fo:fo + 5]), bytes([0x55, 0x8b, 0xec, 0x8b, 0x0d]),
+                         "pristine save-footprint site changed — RE stale")
+        patched = exe_patch.patch_exe(str(_PRISTINE_EXE), None, log=lambda m: None)
+        self.assertEqual(bytes(patched[fo:fo + 5]), bytes([0xb0, 0x01, 0xc2, 0x04, 0x00]),
+                         "save-footprint check not bypassed")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

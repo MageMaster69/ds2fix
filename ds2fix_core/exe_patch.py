@@ -52,6 +52,25 @@ def patch_exe(orig, dst=None, menu169=True, choke=True, ws169=True, res_w=1920, 
         d[_crc_fo] = 0xeb
         log('OK: secondary CRC verify disabled (je -> jmp @0x6457d6)')
 
+    # ---- PATCH SAVEFOOTPRINT: make saves ALWAYS list + load, regardless of content signature.
+    # DS2 stamps every save's summary with a "content_crc" = a hash of the installed resource set at
+    # save time. When enumerating the Single Player / Continue list AND when loading, it calls
+    # IsContentCrcAcceptable (FUN_004139d0), which returns FALSE if the save's crc != the current
+    # install's crc (and isn't in a tiny built-in whitelist) -> the save is SILENTLY HIDDEN from the
+    # list and refused on load. Re-patching the UI tank or installing a data mod changes the resource
+    # set -> changes the crc -> previously-fine saves vanish (the "disappear/reappear" bug). Force the
+    # check to always accept (mov al,1 ; ret 4). Its ONLY two callers are the two save-summary readers
+    # (list @0x41ee87, load @0x41c5a0); MP content-matching uses a separate path, so multiplayer is
+    # unaffected. Reversible; idempotent.
+    _sf_fo = 0x4139d0 - 0x400000
+    if bytes(d[_sf_fo:_sf_fo+5]) == bytes([0x55,0x8b,0xec,0x8b,0x0d]):
+        d[_sf_fo:_sf_fo+5] = bytes([0xb0,0x01,0xc2,0x04,0x00])   # mov al,1 ; ret 4
+        log('OK: save content-footprint check bypassed (FUN_004139d0 -> accept; saves always list/load)')
+    elif bytes(d[_sf_fo:_sf_fo+5]) == bytes([0xb0,0x01,0xc2,0x04,0x00]):
+        log('OK: save content-footprint check already bypassed')
+    else:
+        log(f'WARN: save-footprint site unexpected ({bytes(d[_sf_fo:_sf_fo+5]).hex()}); skipped')
+
     # ---- PATCH UNLOCK: auto-unlock all campaign difficulties (FUN_004171d7 -> always completed).
     _unlock_fo = 0x417226 - 0x400000
     if bytes(d[_unlock_fo:_unlock_fo+2]) == bytes([0x8a,0xd8]):
