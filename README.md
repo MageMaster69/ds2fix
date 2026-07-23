@@ -5,7 +5,7 @@ fullscreen, campaign difficulties unlocked, and a "ds2fix" version label — via
 + data-side tank mods. Ships as a **cross-platform CLI + GUI** (Linux and Windows). Does **not** distribute
 the game; it patches an existing install in place, always from a pristine base.
 
-Status: **v0.1 (working)** — everything below verified in-game (on Linux/Wine; Windows shares the same
+Status: **v0.1.5 (working)** — everything below verified in-game (on Linux/Wine; Windows shares the same
 patcher core, with a native launcher).
 
 ## What works
@@ -17,14 +17,17 @@ patcher core, with a native launcher).
 | Native 16:9 menu (not stretched) | `MENU_169` patches force the frontend to render 16:9 (exe) |
 | Frontend menus scaled + centered for 16:9 | tank `.gas` rect transform (`tank_edit.py`) |
 | In-game (ESC/pause) menu scaled + centered for 16:9 | tank `.gas` rect transform (`tank_edit.py`) |
-| In-game "ds2fix 0.1" overlay, top-right during gameplay | tank `.gas` text node injected into `data_bar` HUD |
+| In-game "ds2fix 0.1.5" overlay, top-right during gameplay | tank `.gas` text node injected into `data_bar` HUD |
 | All campaign difficulties (Merc/Vet/Elite) unlocked from the start | completion-check patch (exe) |
 | Tank data mods no longer crash the game | content-integrity CRC check disabled (exe) |
 | Non-resizable window (no resize black-screen) | window-style patch (exe) |
+| In-game 3D viewports render at widescreen (Journal cloth map, character/inventory paperdoll, hero-creation preview) | force wined3d over DXVK — DXVK blanks these at high res |
+| Multiplayer button re-enabled (LAN + direct-IP) | `DisableButton` NOP (exe) |
+| gamescope cleaned up when the game exits (no lingering compositor) | supervised launcher (`play-ds2.sh` / `ds2fix play`) |
 | Configurable render + output resolution | `RES_W/RES_H`, `OUT_W/OUT_H` env |
 | Configurable UI scale (menus + ESC menu) | `DS2_UISCALE` env (default 1.5) |
 | Fullscreen, upscaled to monitor | `ds2fix.sh` / `play-ds2.sh` (gamescope + FSR) |
-| Version label reads "ds2fix 0.1" | version-string patch (exe) |
+| Version label reads "ds2fix 0.1.5" | version-string patch (exe) |
 
 ## Quick start
 
@@ -111,7 +114,7 @@ Env: `MENU_169` (0 disables the 16:9 menu), `RES_W`/`RES_H` (forced frontend res
 
 - **`patcher/tank_edit.py <tank> [scale]`** — general in-place `.gas` editor. Scales+centers the frontend
   **and in-game (ESC) menus** into the 16:9 canvas (each about its own content centre, so the 640×480 ESC
-  menu lands centred like the 800×600 frontend), **and injects the top-right "ds2fix 0.1" overlay text node
+  menu lands centred like the 800×600 frontend), **and injects the top-right "ds2fix 0.1.5" overlay text node
   into the always-on `data_bar` HUD**. Recompresses within each file's slot, fixes size/CRC/chunk-table, and
   bumps the `.gas` FILETIME past its compiled `dir.lqd22` cache so the engine recompiles from source. To fit
   tight slots it strips trailing whitespace / blank lines (and dedents skrit-free files). Handles
