@@ -44,15 +44,22 @@
    rect enlarges the frame but the icon grid won't follow — the classic DS2 in-game-UI-scaling wall. Needs a
    grid-aware transform, not a blanket rect scale. (Good news for testing: xdotool `i`/`j` keys DO reach
    gameplay, so panels can be driven + screenshotted.)
-4. **First party portrait renders wrong** — *diagnosed 2026-07-23.* Member #1's HUD portrait shows a
-   featureless green blob instead of a face; members #2–8 render correctly. Findings: it is **renderer-
-   independent** (identical under wined3d AND DXVK v2.7.1), **member-1-specific**, and does **not** follow
-   party selection (selecting #2 gave #2 a guard icon but #1 stayed green). Member #1's slot
-   (`awp_itemslot_portrait_1`, rect 6,14,51,59) is defined in **stock `character_awp.gas` — a file we do NOT
-   edit** — so it's not caused by our patch. Notable: `awp_itemslot_portrait_1` **lacks the `index`/`layer`
-   binding** that `_2`..`_8` carry (`i index = 1; layer = member_2;`). Candidate fix to test: add
-   `index = 0; layer = member_1;` to slot 1 (requires adding `character_awp.gas` to the tank targets). May
-   instead be a wine portrait-render-target quirk. Cosmetic (the character is fully in the party + playable).
+4. **First party portrait (leader) renders offset+green** — *root-caused 2026-09-04, believed NOT
+   data-fixable.* Member #1's HUD portrait (`awp_itemslot_portrait_1`, rect 6,14,51,59 in
+   `character_awp.gas`) shows the leader's face pushed to the bottom of the frame (elf ear / head-top just
+   peeking) with the render-target's green clear-color filling the space above; members #2–8 render centered
+   and fine. **Every UI-data lever was tested on the live tank (2026-09-04), each with the `dir.lqd22`
+   FILETIME recompile-bust so the edit actually applied:** (a) add the `index=0; layer=member_1;` binding
+   that _2..8 carry (`member_1` is a valid layer, referenced by multi_inventories/member_labels/
+   minigame_chooser) → **no change**; (b) force-recompile at original coords → face draws but stays low +
+   green above; (c) enlarge rect to 140,140 → the **whole face scales up with the rect**, green headroom
+   included. That last point is decisive: the itemslot **scales its content to the rect**, so the green is
+   *inside the leader's live render texture* (head framed too low in its own target) — no rect move/resize or
+   binding can fix internal framing. It's the engine's **live leader-portrait camera (party slot 0) under
+   wined3d** — members 2–8 are framed correctly, only slot 0 is wrong. **Strong hypothesis: renders correctly
+   on native Windows D3D9** (game shipped fine on Windows) → **verify during the Windows test (#6)**;
+   likely resolves there with no code change. Cosmetic; character is fully in the party + playable. All
+   experiments reverted to the clean patched tank.
 5. **DXVK for performance** — *re-tested 2026-07-23: DXVK v2.7.1 renders the `object_view` viewports
    correctly* (the old blank-viewport bug was specific to v2.6.2). Verified: main-menu preview, journal, and
    gameplay all render under DXVK v2.7.1 (from `GE-Proton10-34/.../dxvk/i386-windows/d3d9.dll`). The launcher
