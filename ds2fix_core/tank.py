@@ -74,6 +74,53 @@ def customize_mp_provider(u):
         b'Tip: a VPN (Tailscale/ZeroTier) needs no port forwarding.')
     return u
 
+# In-game character/party PANELS (inventory / character / spellbook / skills). Authored for 800x600 and drawn
+# at native size in the top-left corner at any resolution (the classic DS2 "tiny inventory at high res").
+# The item-grid cell size is DATA, not engine constant ([t:gridbox] box_width/box_height/columns/rows in
+# character_grids.gas), so the panels can be scaled as a WHOLE: every rect plus the pixel-valued fields,
+# about the top-left origin (they are side panels docked beside the HUD, not centred dialogs).
+PANEL_TARGETS = (
+    'ui/interfaces/backend/character_grids/character_grids.gas',
+    'ui/interfaces/backend/character_inventory/character_inventory.gas',
+    'ui/interfaces/backend/character_main_tab/character_main_tab.gas',
+    'ui/interfaces/backend/character_header_bar/character_header_bar.gas',
+    'ui/interfaces/backend/character_header_tabs/character_header_tabs.gas',
+    'ui/interfaces/backend/character_spellbook_tab/character_spellbook_tab.gas',
+    'ui/interfaces/backend/character_skills_tab/character_skills_tab.gas',
+    'ui/interfaces/backend/skills_melee_tab/skills_melee_tab.gas',       # Specialties sub-tabs (skill trees)
+    'ui/interfaces/backend/skills_ranged_tab/skills_ranged_tab.gas',
+    'ui/interfaces/backend/skills_combat_tab/skills_combat_tab.gas',
+    'ui/interfaces/backend/skills_nature_tab/skills_nature_tab.gas',
+    'ui/interfaces/backend/skills_general_tab/skills_general_tab.gas',
+)
+# pixel-valued fields (besides rect) that must scale with the panel. NOT the [t:gridbox] cell size
+# (box_width/box_height/border_padding): the engine scales grids itself via UIGridbox::SetScale, fed by the
+# exe patch GRIDSCALE - the tank only moves a gridbox's origin (see scale_gridbox).
+PANEL_PIXEL_FIELDS = ('max_width', 'max_height', 'parent_offset', 'drag_x', 'drag_y', 'drag_dock_max_y',
+                      'text_rect_deflate_x', 'text_rect_deflate_y')
+GRIDBOX_FILE = 'ui/interfaces/backend/character_grids/character_grids.gas'
+
+
+def scale_gridbox(u, scale):
+    """[t:gridbox] interfaces: scale the rect about the top-left origin like the rest of the panel (the rect is
+    the drop/hit-test area, so it must cover rows*cols scaled cells) but keep the authored 32-px cell size -
+    the engine's UIGridbox::SetScale(ui_scale) (exe patch GRIDSCALE) scales cells and item icons itself."""
+    return scale_center(u, scale, scale_object_view=True, origin=(0, 0))
+
+
+def scale_panel(u, scale):
+    """Scale an in-game panel interface about the top-left origin: rects (incl. object_view) and the
+    pixel-valued fields above. Ints stay ints, floats stay floats."""
+    u = scale_center(u, scale, scale_object_view=True, origin=(0, 0))
+    names = b'|'.join(f.encode() for f in PANEL_PIXEL_FIELDS)
+    def repl(m):
+        val = m.group(3)
+        if b'.' in val:
+            return m.group(1) + m.group(2) + (b'%.6f' % (float(val) * scale)) + b';'
+        return m.group(1) + m.group(2) + (b'%d' % round(int(val) * scale)) + b';'
+    return re.sub(rb'(\s[fi]?\s*)((?:' + names + rb')\s*=\s*)(-?\d+(?:\.\d+)?)\s*;', repl, u)
+
+
 # In-game "ds2fix 0.1" overlay: injected into the always-on data_bar HUD (needs `visible = true`).
 OVERLAY_TARGET = 'ui/interfaces/backend/data_bar/data_bar.gas'
 OVERLAY_ANCHOR = b'\t[t:button,n:button_collect_loot_bg]'
@@ -102,10 +149,13 @@ if OVERLAY_TARGET not in TARGETS:
 BLK = 0x4000  # 16384-byte uncompressed block per zlib chunk
 
 
-def scale_center(u, scale, iw=800, ih=600, scale_object_view=False, fill_object_view=False, canvas=None):
+def scale_center(u, scale, iw=800, ih=600, scale_object_view=False, fill_object_view=False, canvas=None,
+                 origin=None):
     cw, ch = canvas or (CW, CH)
     ox = (cw - iw*scale) / 2      # centre the intended canvas (iw x ih) inside the cw x ch output
     oy = (ch - ih*scale) / 2
+    if origin is not None:        # explicit origin (panels: top-left anchored)
+        ox, oy = origin
     def repl(m):
         x1,y1,x2,y2 = (int(v) for v in m.group(1,2,3,4))
         if (x1,y1,x2,y2) in OVERRIDES:
@@ -178,7 +228,7 @@ def parse(d):
     return files, sorted(offs)
 
 
-def _target_list(files):
+def _target_list(files, panels=True):
     """Auto-discover every dialog/menu interface to scale+center: all of ui/interfaces/frontend/ and
     ui/interfaces/multiplayer/, minus the in-game HUD panels (which anchor to screen edges, not centre).
     Plus the backend ESC menu and the overlay target. Robust to new dialogs across game versions."""
@@ -196,6 +246,8 @@ def _target_list(files):
     targets = sorted(set(targets))
     if OVERLAY_TARGET not in targets:
         targets.append(OVERLAY_TARGET)
+    if panels:
+        targets += [p for p in PANEL_TARGETS if p in files and p not in targets]
     return targets
 
 
@@ -214,6 +266,10 @@ def _edit_one(d, files, offs, path, scale, version, write_end, log, canvas=None)
     iw, ih = INTENDED.get(path, (800, 600))
     if path == OVERLAY_TARGET:
         u2 = insert_overlay(u, version)
+    elif path == GRIDBOX_FILE:
+        u2 = scale_gridbox(u, scale)
+    elif path in PANEL_TARGETS:
+        u2 = scale_panel(u, scale)
     elif _is_map_target(path):
         # Cloth-map screens: scale+center the whole screen INCLUDING the [t:object_view] map viewport, so the
         # map grows with its frame. (Blanking on scale was a DXVK bug, fixed by forcing wined3d.)
@@ -269,7 +325,7 @@ def _edit_one(d, files, offs, path, scale, version, write_end, log, canvas=None)
     log(f"OK {path}: {len(u)}->{len(u2)}B, {nch} chunk(s), {where}")
 
 
-def edit_tank(tank, scale=1.5, backup=True, version=None, log=print, canvas=None):
+def edit_tank(tank, scale=1.5, backup=True, version=None, log=print, canvas=None, panels=True):
     """Edit a DSg2Tank (.ds2res) in place: scale/center the menu interfaces + inject the overlay.
     Writes a `.pre-edit.bak` next to it (if backup). Requires the exe CRC check disabled.
     `canvas=(w,h)` = the game window's client size to centre into (default: the Linux 1912x1046)."""
@@ -281,7 +337,7 @@ def edit_tank(tank, scale=1.5, backup=True, version=None, log=print, canvas=None
         shutil.copy2(tank, tank+'.pre-edit.bak')
     write_end = [len(d)]   # append cursor for relocated files (list = mutable closure)
     ok = skipped = 0
-    for path in _target_list(files):
+    for path in _target_list(files, panels=panels):
         if path not in files:
             log(f"SKIP {path}: not in tank"); skipped += 1; continue
         try:

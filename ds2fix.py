@@ -407,12 +407,15 @@ def do_patch(gamedir, res_w, res_h, scale, menu169, log=print, borderless=None):
     log(f"patching exe (MENU_169={int(menu169)}, {res_w}x{res_h}, "
         f"{'borderless' if borderless else 'captioned'} window) ...")
     patch_exe(str(pexe), str(exe), menu169=menu169, res_w=res_w, res_h=res_h, borderless=borderless,
+              ui_scale=scale,
               dyncanvas=os.environ.get("DS2FIX_DYNCANVAS", "1") != "0",   # debug/bisect toggle
               portrait=os.environ.get("DS2FIX_PORTRAIT", "1") != "0",     # leader-portrait fix (default on)
               log=lambda m: log("  " + m))
     log(f"patching tank (UI scale {scale}, canvas {canvas[0]}x{canvas[1]}) ...")
     shutil.copy2(ptank, tank)
-    edit_tank(str(tank), scale=scale, backup=False, canvas=canvas, log=lambda m: log("  " + m))
+    edit_tank(str(tank), scale=scale, backup=False, canvas=canvas,
+              panels=os.environ.get("DS2FIX_PANELS", "1") != "0",   # in-game panel scaling (default on)
+              log=lambda m: log("  " + m))
     log("patch complete.")
 
 

@@ -1,5 +1,10 @@
 # DS2Fix — status & roadmap
 
+## ✅ Done (v0.1.10)
+- **In-game panels scaled** (inventory / character / spellbook / specialties) at the UI scale, including the
+  item grids via the engine's own gridbox scale (exe patch GRIDSCALE). See #3 below for the mechanism.
+- Windows: Journal → Map and the 4:3 mode (`--res 1440x1080`, centred) verified.
+
 ## ✅ Done (v0.1.9)
 - **Party-leader portrait fixed** (stock DS2 bug above 1280 px wide): both portrait generators now grab a
   rect centred on the viewport (see #4 below for the full mechanism). Verified on Windows 11 / D3D9.
@@ -44,14 +49,20 @@
 2. **Re-enable the Journal → Map cloth-map scaling** — now that frontend object_view scaling is proven to
    work on wined3d, re-test the backend map targets (currently commented out in `_target_list`) and confirm
    the cloth map scales cleanly (the "out of line" symptom was the same object_view offset just fixed).
-3. **Scale in-game panels** (inventory / character / spellbook / trade) — *investigated 2026-07-23.* The
-   panels render at native 800×600 size, anchored top-left (functional, just small). They live in
-   `character_awp.gas` (204 KB) + `character_*_tab.gas` + `gold_trade.gas`, all currently excluded from
-   `_target_list` (the `in_game`/`panel` filter). Scaling is NOT the clean win it is for menus: the item
-   **grid cells are fixed-size** (item icons are fixed-pixel textures the engine draws), so scaling the panel
-   rect enlarges the frame but the icon grid won't follow — the classic DS2 in-game-UI-scaling wall. Needs a
-   grid-aware transform, not a blanket rect scale. (Good news for testing: xdotool `i`/`j` keys DO reach
-   gameplay, so panels can be driven + screenshotted.)
+   *Windows 2026-09-13:* the unscaled Journal → Map renders correctly at 1440p (cloth map, icons, travel log),
+   and the M-key full-screen map is fine; only the size is still native.
+3. **Scale in-game panels** (inventory / character / spellbook / skills) — **DONE in v0.1.10.** The panels
+   (`character_*.gas`, `skills_*_tab.gas`, `character_grids.gas`) are scaled about the top-left origin at the
+   UI scale (rects + the pixel-valued fields `max_width/height`, `parent_offset`, `drag_*`, `text_rect_deflate_*`).
+   The "item grid cells are fixed-pixel" wall turned out to be an ENGINE SCALE FIELD, not a constant: every
+   `[t:gridbox]` sizes items/cells/hit-tests from `UIWindow+0x104` (cells × 32 × scale), and the engine's own
+   `UIGridbox::SetScale` (0x77b300) is called with a literal 1.0 for each member's inventory grid every time
+   the panel opens (0x49c57f). ds2fix keeps `box_width` at 32 in the data, scales the gridbox rect with the
+   panel, and the exe patch GRIDSCALE feeds the UI scale into that call (stub in the `.ds2fix` section).
+   Verified on Windows at 1.5× (1080p) and 2× (1440p): 48/64-px cells, item icons scale, drop / move /
+   re-equip / hover all exact. Known cosmetic: the icon held on the cursor while dragging is drawn 1×.
+   Not scaled (deliberate): store / stash / trade / pet panels — their grids never get SetScale, so they
+   stay consistent at 1×. Linux/Wine: same data + exe patch; not yet re-verified there.
 4. **Party leader (hero) portrait blank / mis-framed** — **FIXED in v0.1.9** (exe patch, both generators).
    Root cause, established with a runtime tracer on Windows 11 (D3D9): a portrait is a 64x64 backbuffer
    pixel-grab taken after an orthographic render of the character, and the head lands at the **viewport

@@ -80,6 +80,21 @@ class TestTankTransform(unittest.TestCase):
         self.assertIn(b"rect = 0,0,2560,1440",
                       tank.scale_center(mv, 2.0, scale_object_view=True, fill_object_view=True, canvas=(2560, 1440)))
 
+    def test_scale_panel_scales_rects_and_pixel_fields_about_top_left(self):
+        src = (b"[t:text,n:t]\n{\n\t  i max_width = 87;\n\t  i draw_order = 101;\n\trect = 10,20,110,120;\n}\n")
+        out = tank.scale_panel(src, 2.0)
+        self.assertIn(b"rect = 20,40,220,240", out)           # top-left origin, not centred
+        self.assertIn(b"i max_width = 174;", out)
+        self.assertIn(b"i draw_order = 101;", out)            # non-pixel ints untouched
+
+    def test_scale_gridbox_scales_rect_not_cells(self):
+        src = (b"[t:gridbox,n:g]\n{\n\t  i border_padding = 10;\n\t  f box_height = 32.000000;\n"
+               b"\t  f box_width = 32.000000;\n\t  i columns = 5;\n\t\trect = 366,132,526,548;\n\t  i rows = 13;\n}\n")
+        out = tank.scale_gridbox(src, 1.5)
+        self.assertIn(b"rect = 549,198,789,822", out)         # whole rect x1.5 about the origin
+        self.assertIn(b"f box_width = 32.000000;", out)       # cell size untouched (engine scales it)
+        self.assertIn(b"i border_padding = 10;", out)
+
     def test_is_map_target(self):
         self.assertTrue(tank._is_map_target("ui/interfaces/backend/journal/books/mapbook/mapbook.gas"))
         self.assertTrue(tank._is_map_target("ui/interfaces/backend/teleport/teleport.gas"))
@@ -215,6 +230,19 @@ class TestExePatch(unittest.TestCase):
         self.assertEqual(p[0xf2af1:0xf2af1 + 3], bytes.fromhex('db 45 8c'))
         fo = 0x443629 - 0x400000                                                 # SetPortrait untouched
         self.assertEqual(p[fo - 1:fo + 6], bytes.fromhex('53 57 e8 c2 32 3e 00'))
+
+    def test_inventory_grid_setscale_patched(self):
+        fo = 0x49c5a1 - 0x400000
+        pristine = _PRISTINE_EXE.read_bytes()
+        self.assertEqual(pristine[fo:fo + 20], bytes.fromhex('8b4038d9e88b88d00000008b0151d91c24ff505c'))
+        p = exe_patch.patch_exe(str(_PRISTINE_EXE), None, res_w=2560, res_h=1440, ui_scale=2.0, log=lambda m: None)
+        self.assertEqual(p[fo], 0xe9)                                             # jmp stub
+        self.assertEqual(p[fo + 5:fo + 20], bytes([0x90]) * 15)
+        self.assertEqual(p[0x7d50f0:0x7d50f4], struct.pack('<f', 2.0))           # scale constant
+        p = exe_patch.patch_exe(str(_PRISTINE_EXE), None, res_w=1920, res_h=1080, log=lambda m: None)
+        self.assertEqual(p[0x7d50f0:0x7d50f4], struct.pack('<f', 1.5))           # default = height/720
+        p = exe_patch.patch_exe(str(_PRISTINE_EXE), None, gridscale=False, log=lambda m: None)
+        self.assertEqual(p[fo:fo + 20], pristine[fo:fo + 20])                     # opt-out
 
     def test_save_footprint_check_bypassed(self):
         # IsContentCrcAcceptable (FUN_004139d0) must be forced to "mov al,1 ; ret 4" so saves always

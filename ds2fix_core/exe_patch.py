@@ -13,12 +13,15 @@ except ImportError:
 
 
 def patch_exe(orig, dst=None, menu169=True, choke=True, ws169=True, res_w=1920, res_h=1080,
-              version=None, log=print, borderless=False, dyncanvas=True, portrait=True):
+              version=None, log=print, borderless=False, dyncanvas=True, portrait=True,
+              gridscale=True, ui_scale=None):
     """Patch a pristine DungeonSiege2.exe. `orig`/`dst` are file paths (dst optional -> returns bytes).
     Returns the patched bytes. Raises AssertionError if a patch site doesn't match (wrong/patched exe).
     `borderless`: give the game window a WS_POPUP (no caption/frame) style instead of the non-resizable
     captioned one — the Windows launcher's borderless-fullscreen mode (see PATCH WIN).
     `portrait`: fix the party-leader HUD portrait (see PATCH PORTRAIT; on by default).
+    `gridscale`: inventory grids run at `ui_scale` (the panel UI scale; default res_h/720) via the engine's
+    own UIGridbox::SetScale (see PATCH GRIDSCALE; on by default).
     `dyncanvas=False` is a debug/bisect switch only."""
     MENU_169, CHOKE, WS169 = menu169, choke, ws169
     version = version or __version__
@@ -201,7 +204,7 @@ def patch_exe(orig, dst=None, menu169=True, choke=True, ws169=True, res_w=1920, 
     new_va = align(maxend_va, secalign)
     new_raw = align(len(d), filealign)
     new_rawsize = filealign
-    new_vsize = 0x80
+    new_vsize = 0x100
     S = imgbase + new_va
 
     def txt_fo(va): return va - imgbase   # .text: PointerToRawData==VirtualAddress==0x1000
@@ -244,6 +247,40 @@ def patch_exe(orig, dst=None, menu169=True, choke=True, ws169=True, res_w=1920, 
     if len(d) < new_raw: d += b'\x00' * (new_raw - len(d))
     body = bytearray(stub) + b'\xCC' * (new_rawsize - len(stub))
     d[new_raw:new_raw+new_rawsize] = body
+
+    # ---- PATCH GRIDSCALE: in-game inventory grids at the panel UI scale. ds2fix scales the character panel
+    # .gas files (rects x1.5/x2), but a [t:gridbox]'s item icons, cell hit-testing and drag/drop are all
+    # driven by the engine's OWN scale field (UIWindow+0x104, multiplied in everywhere: UIGridbox::Update
+    # 0x779130 sizes an item as cells*32*scale). The engine even has the setter: UIGridbox::SetScale
+    # (0x77b300, vtable slot 23) scales the rect about its top-left, the cell size and rebuilds the cell
+    # table - and the game calls it with a literal 1.0 for every party member's inventory grid each time
+    # the panel opens (0x49c57f loop: `fld1` @0x49c5a4). So: the tank keeps the gridbox cell size at 32 and
+    # only moves its origin, and this patch feeds the panel UI scale into that call instead of 1.0
+    # (constant at S+0xF0). Verified live: 48-px cells, a 1x2 dagger draws 48x96, drop/hover exact.
+    _gs_site = 0x49c5a1
+    _gs_orig = bytes.fromhex('8b 40 38 d9 e8 8b 88 d0 00 00 00 8b 01 51 d9 1c 24 ff 50 5c')
+    _gs_cur = bytes(d[txt_fo(_gs_site):txt_fo(_gs_site)+20])
+    if gridscale:
+        _us = float(ui_scale) if ui_scale else round(int(res_h) / 720.0, 2)
+        if _gs_cur == _gs_orig:
+            S3, KS = S + 0x60, S + 0xF0
+            st = bytearray()
+            st += bytes([0x8b,0x40,0x38])                          # mov eax,[eax+0x38]
+            st += bytes([0x8b,0x88,0xd0,0x00,0x00,0x00])           # mov ecx,[eax+0xd0]   (the member's gridbox)
+            st += bytes([0x8b,0x01])                               # mov eax,[ecx]
+            st += bytes([0x51])                                    # push ecx
+            st += bytes([0xd9,0x05]) + struct.pack('<I', KS)       # fld dword [KS]        (panel UI scale)
+            st += bytes([0xd9,0x1c,0x24])                          # fstp dword [esp]      (arg = scale)
+            st += bytes([0xff,0x50,0x5c])                          # call [eax+0x5c]       UIGridbox::SetScale
+            st += bytes([0xe9]) + rel32(S3 + len(st) + 5, _gs_site + 20)
+            d[new_raw+0x60 : new_raw+0x60+len(st)] = st
+            d[new_raw+0xF0 : new_raw+0xF4] = struct.pack('<f', _us)
+            d[txt_fo(_gs_site):txt_fo(_gs_site)+20] = bytes([0xe9]) + rel32(_gs_site + 5, S3) + bytes([0x90]) * 15
+            log(f"OK: inventory grids scaled x{_us:g} via UIGridbox::SetScale (call @0x49c5b2 -> stub @{S3:#x})")
+        elif _gs_cur[0] == 0xe9:
+            log('OK: inventory grid scale already patched')
+        else:
+            log(f'WARN: gridbox SetScale call site unexpected ({_gs_cur.hex()}); skipped')
 
     if MENU_169:
         _rw = int(res_w); _rh = int(res_h)
@@ -301,4 +338,6 @@ if __name__ == '__main__':
               res_w=int(os.environ.get('RES_W', '1920')),
               res_h=int(os.environ.get('RES_H', '1080')),
               borderless=os.environ.get('BORDERLESS', '0') == '1',
-              portrait=os.environ.get('PORTRAIT', '1') != '0')
+              portrait=os.environ.get('PORTRAIT', '1') != '0',
+              gridscale=os.environ.get('GRIDSCALE', '1') != '0',
+              ui_scale=float(os.environ['DS2_UISCALE']) if os.environ.get('DS2_UISCALE') else None)
