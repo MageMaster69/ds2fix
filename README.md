@@ -5,7 +5,7 @@ fullscreen, campaign difficulties unlocked, and a "ds2fix" version label — via
 + data-side tank mods. Ships as a **cross-platform CLI + GUI** (Linux and Windows). Does **not** distribute
 the game; it patches an existing install in place, always from a pristine base.
 
-Status: **v1.0 (v0.1.8, working)** — everything below verified in-game on Linux/Wine **and natively on
+Status: **v1.0 (v0.1.9, working)** — everything below verified in-game on Linux/Wine **and natively on
 Windows 11** (same patcher core; the Windows launcher runs the game as a borderless window at your monitor's
 resolution — the gamescope role — so alt-tab is clean and there is no exclusive-mode switch).
 
@@ -28,6 +28,7 @@ resolution — the gamescope role — so alt-tab is clean and there is no exclus
 | Multiplayer button re-enabled (LAN + direct-IP) | `DisableButton` NOP (exe) |
 | gamescope cleaned up when the game exits (no lingering compositor) | supervised launcher (`play-ds2.sh` / `ds2fix play`) |
 | Large-Address-Aware (2GB→4GB) so HD-texture mods don't OOM-crash | PE-header bit (exe) |
+| Party-leader HUD portrait renders at any resolution (stock DS2 shows it black above 1280 px wide) | portrait grab-rect patches (exe, both generators) |
 | Uncapped framerate (DS2 hard-caps at 75) | `maxfps` launch arg (default 120; `--maxfps 0` = uncapped) |
 | Optional mod installer (Storage Vault, HD Textures) — SHA512-verified, non-bundled | `ds2fix mods` + GUI |
 | Configurable render + output resolution | `RES_W/RES_H`, `OUT_W/OUT_H` env |

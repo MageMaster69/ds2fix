@@ -93,19 +93,6 @@ class TestTankTransform(unittest.TestCase):
         self.assertEqual(once, tank.insert_overlay(once, "0.1.5"))   # second call is a no-op
 
 
-class TestPortraitRect(unittest.TestCase):
-    def test_formula_matches_ingame_generator(self):
-        r = exe_patch.portrait_grab_rect
-        # exact in-game values: float32 0.00125/0.0016667 are slightly UNDER, and _ftol truncates ->
-        # 1920 wide gives 911 (not 912), 1440 high gives 664 (not 665). Mirroring the game is the point.
-        self.assertEqual(r(1920, 1080), (911, 498, 975, 562))
-        self.assertEqual(r(2560, 1440), (1215, 664, 1279, 728))
-        self.assertEqual(r(1280, 1024), (619, 488, 683, 552))   # GPG fudge table (+12,+16)
-        self.assertEqual(r(1024, 768), (494, 360, 558, 424))    # (+8,+6)
-        self.assertEqual(r(640, 480), (301, 218, 365, 282))      # (-2,-3)
-        self.assertEqual(r(800, 600)[2:], (r(800, 600)[0] + 64, r(800, 600)[1] + 64))   # always 64x64
-
-
 class TestLauncherDefaults(unittest.TestCase):
     def test_auto_scale_and_canvas(self):
         import ds2fix
@@ -210,21 +197,24 @@ class TestExePatch(unittest.TestCase):
         diff = [i for i, (a, b) in enumerate(zip(captioned, borderless)) if a != b]
         self.assertTrue(diff and all(fo <= i < fo + 4 for i in diff), f"unexpected extra diffs: {diff[:8]}")
 
-    def test_leader_portrait_grab_rect_follows_frontend_res(self):
+    def test_leader_portrait_rects_centred(self):
         sites = (0x4435ac, 0x4435b3, 0x4435ba, 0x4435c1)
         rd = lambda b, va: int.from_bytes(b[va - 0x400000:va - 0x400000 + 4], 'little')
         pristine = _PRISTINE_EXE.read_bytes()
         self.assertEqual([rd(pristine, s) for s in sites], [380, 277, 444, 341])
         p = exe_patch.patch_exe(str(_PRISTINE_EXE), None, res_w=2560, res_h=1440, log=lambda m: None)
-        self.assertEqual([rd(p, s) for s in sites], [380, 277, 444, 341])   # off by default (experimental)
-        p = exe_patch.patch_exe(str(_PRISTINE_EXE), None, res_w=2560, res_h=1440, portrait_rect=True,
-                                log=lambda m: None)
-        self.assertEqual([rd(p, s) for s in sites], list(exe_patch.portrait_grab_rect(2560, 1440)))
-        p = exe_patch.patch_exe(str(_PRISTINE_EXE), None, res_w=1920, res_h=1080, canvas_w=1912, canvas_h=1046,
-                                portrait_rect=True, log=lambda m: None)
-        self.assertEqual([rd(p, s) for s in sites], list(exe_patch.portrait_grab_rect(1912, 1046)))
-        p = exe_patch.patch_exe(str(_PRISTINE_EXE), None, menu169=False, portrait_rect=True, log=lambda m: None)
-        self.assertEqual([rd(p, s) for s in sites], [380, 277, 444, 341])   # 800x600 frontend: stock rect
+        self.assertEqual([rd(p, s) for s in sites], [1260, 697, 1324, 761])          # frontend: W/2-20, H/2-23
+        p = exe_patch.patch_exe(str(_PRISTINE_EXE), None, res_w=1920, res_h=1080, log=lambda m: None)
+        self.assertEqual([rd(p, s) for s in sites], [940, 517, 1004, 581])
+        # in-game generator: x = (w>>1)-20, y = (h>>1)-23, fudge table skipped
+        self.assertEqual(p[0xf2af1:0xf2af1 + 8], bytes.fromhex('8b 45 8c d1 e8 83 e8 14'))
+        self.assertEqual(p[0xf2b19:0xf2b19 + 8], bytes.fromhex('8b 45 8c d1 e8 83 e8 17'))
+        self.assertEqual(p[0xf2b3e:0xf2b3e + 6], b'\xe9' + (0x4f2be6 - 0x4f2b43).to_bytes(4, 'little', signed=True) + b'\x90')
+        p = exe_patch.patch_exe(str(_PRISTINE_EXE), None, portrait=False, log=lambda m: None)
+        self.assertEqual([rd(p, s) for s in sites], [380, 277, 444, 341])          # opt-out leaves stock
+        self.assertEqual(p[0xf2af1:0xf2af1 + 3], bytes.fromhex('db 45 8c'))
+        fo = 0x443629 - 0x400000                                                 # SetPortrait untouched
+        self.assertEqual(p[fo - 1:fo + 6], bytes.fromhex('53 57 e8 c2 32 3e 00'))
 
     def test_save_footprint_check_bypassed(self):
         # IsContentCrcAcceptable (FUN_004139d0) must be forced to "mov al,1 ; ret 4" so saves always

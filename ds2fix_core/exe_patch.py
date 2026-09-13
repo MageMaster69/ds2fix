@@ -12,26 +12,14 @@ except ImportError:
     from _version import __version__             # run directly as a script
 
 
-def portrait_grab_rect(w, h):
-    """The 64x64 backbuffer rect DS2's IN-GAME portrait generator (FUN_004f25bb) grabs for a w x h window:
-    x = trunc(w*0.00125*380), y = trunc(h*0.0016667*277) (the float32 constants @0xaa5e44/0xaa5e3c, _ftol
-    truncation), plus GPG's per-resolution fudge. At 800x600 this is the frontend's hard-coded 380,277."""
-    x = int(w * 0.0012499999720603228 * 380.0); y = int(h * 0.0016666667070239782 * 277.0)
-    fx, fy = {(1280, 1024): (12, 16), (1024, 768): (8, 6), (640, 480): (-2, -3)}.get((int(w), int(h)), (0, 0))
-    x += fx; y += fy
-    return (x, y, x + 64, y + 64)
-
-
 def patch_exe(orig, dst=None, menu169=True, choke=True, ws169=True, res_w=1920, res_h=1080,
-              version=None, log=print, borderless=False, dyncanvas=True, canvas_w=None, canvas_h=None,
-              portrait_rect=False):
+              version=None, log=print, borderless=False, dyncanvas=True, portrait=True):
     """Patch a pristine DungeonSiege2.exe. `orig`/`dst` are file paths (dst optional -> returns bytes).
     Returns the patched bytes. Raises AssertionError if a patch site doesn't match (wrong/patched exe).
     `borderless`: give the game window a WS_POPUP (no caption/frame) style instead of the non-resizable
     captioned one — the Windows launcher's borderless-fullscreen mode (see PATCH WIN).
-    `canvas_w/h`: the game window's CLIENT size (default: res) — what the leader-portrait grab rect is
-    computed from (see PATCH PORTRAIT). `portrait_rect=True` enables that EXPERIMENTAL patch (off by
-    default: verified NOT sufficient on native Windows). `dyncanvas=False` is a debug/bisect switch only."""
+    `portrait`: fix the party-leader HUD portrait (see PATCH PORTRAIT; on by default).
+    `dyncanvas=False` is a debug/bisect switch only."""
     MENU_169, CHOKE, WS169 = menu169, choke, ws169
     version = version or __version__
     with open(orig, 'rb') as _f:
@@ -136,6 +124,47 @@ def patch_exe(orig, dst=None, menu169=True, choke=True, ws169=True, res_w=1920, 
         log('OK: Multiplayer button already enabled')
     else:
         log(f'WARN: MP-button site unexpected ({bytes(d[_mp_fo:_mp_fo+5]).hex()}); skipped')
+
+    # ---- PATCH PORTRAIT: party-leader (hero) HUD portrait. Stock DS2 bug ("black portrait above 1280 px
+    # wide", DS2TroubleshootingGuide 4.1). A portrait is a 64x64 backbuffer pixel-grab taken after an
+    # orthographic render of the character whose head lands at the VIEWPORT CENTRE at a fixed pixel size
+    # (measured live on Windows 11 at 2560x1440: head centre ~(1284,725) frontend, ~(1300,722) in-game).
+    # GPG authored the grab rect for 800x600 as {380,277}-{444,341} = viewport centre + (-20,-23) origin.
+    #  * FRONTEND generator (RCGeneratePortrait -> FUN_00443480): the rect is HARD-CODED (imm32
+    #    @0x4435ac/b3/ba/c1). With MENU_169 the frontend backbuffer is the game res -> the rect is far from
+    #    the head -> black texture, persisted in the party file. Fix: origin = (W/2-20, H/2-23).
+    #  * IN-GAME generator (FUN_004f25bb; used for the hero on every LOAD, since the saved Player portrait
+    #    is reset at 0x82c0e7, and for hired companions): x = trunc(w*0.00125*380), y = trunc(h*0.0016667*277)
+    #    scales the ORIGIN proportionally, so the rect drifts left/up of the head as the window grows
+    #    (GPG's fudge table for 1280x1024/1024x768/640x480 hand-corrected exactly this). Fix: replace both
+    #    fild/fmul/fmul/ftol blocks with (w>>1)-20 / (h>>1)-23 and jump over the fudges.
+    _pt_sites = ((0x4435ac, 380), (0x4435b3, 277), (0x4435ba, 444), (0x4435c1, 341))
+    _pt_cur = [bytes(d[a - 0x400000:a - 0x400000 + 4]) for a, _ in _pt_sites]
+    _ig_x, _ig_y, _ig_j = 0x4f2af1 - 0x400000, 0x4f2b19 - 0x400000, 0x4f2b3e - 0x400000
+    _ig_x_orig = bytes.fromhex('db 45 8c d8 0d 44 5e aa 00 d8 0d 40 5e aa 00 e8 17 7d 53 00')
+    _ig_y_orig = bytes.fromhex('db 45 8c d8 0d 3c 5e aa 00 d8 0d 38 5e aa 00 e8 ef 7c 53 00')
+    _ig_j_orig = bytes.fromhex('8b 96 b4 00 00 00')
+    if portrait:
+        _px, _py = int(res_w) // 2 - 20, int(res_h) // 2 - 23
+        _rect = (_px, _py, _px + 64, _py + 64)
+        if all(c == v.to_bytes(4, 'little') for c, (_, v) in zip(_pt_cur, _pt_sites)):
+            for (a, _), v in zip(_pt_sites, _rect):
+                d[a - 0x400000:a - 0x400000 + 4] = v.to_bytes(4, 'little')
+            log(f"OK: leader portrait (frontend) grab rect 380,277,444,341 -> {','.join(map(str, _rect))} "
+                f"(centred on the {res_w}x{res_h} frontend backbuffer; FUN_00443480 @0x4435ac)")
+        else:
+            log(f'WARN: leader-portrait frontend rect site unexpected ({b"".join(_pt_cur).hex()}); skipped')
+        if (bytes(d[_ig_x:_ig_x+20]) == _ig_x_orig and bytes(d[_ig_y:_ig_y+20]) == _ig_y_orig
+                and bytes(d[_ig_j:_ig_j+6]) == _ig_j_orig):
+            # mov eax,[ebp-0x74] ; shr eax,1 ; sub eax,20|23 ; nop*12   (eax = x|y, as the ftol left it)
+            d[_ig_x:_ig_x+20] = bytes.fromhex('8b 45 8c d1 e8 83 e8 14') + b'\x90' * 12
+            d[_ig_y:_ig_y+20] = bytes.fromhex('8b 45 8c d1 e8 83 e8 17') + b'\x90' * 12
+            d[_ig_j:_ig_j+6] = b'\xe9' + struct.pack('<i', 0x4f2be6 - (0x4f2b3e + 5)) + b'\x90'   # skip fudges
+            log('OK: portrait (in-game) grab rect centred on the live window (FUN_004f25bb @0x4f2af1/0x4f2b19; fudges skipped)')
+        elif bytes(d[_ig_x:_ig_x+8]) == bytes.fromhex('8b 45 8c d1 e8 83 e8 14'):
+            log('OK: portrait (in-game) grab rect already centred')
+        else:
+            log(f'WARN: portrait in-game rect site unexpected ({bytes(d[_ig_x:_ig_x+8]).hex()}); skipped')
 
     # ---- parse PE headers ----
     pe = struct.unpack('<I', d[0x3c:0x40])[0]
@@ -254,30 +283,6 @@ def patch_exe(orig, dst=None, menu169=True, choke=True, ws169=True, res_w=1920, 
         log(f"OK: [MENU_169] CreateWindowExA args forced to {_rw}x{_rh} (@0x5f2220/0x5f2233)")
         log(f"OK: [MENU_169] frontend/creation res 800x600 -> {_rw}x{_rh} at 4 sites")
 
-        # ---- PATCH PORTRAIT: the party LEADER's HUD portrait (stock DS2 bug above 1280 px wide; black on
-        # native D3D9, face-low + green clear under Wine; members 2..8 fine). A DS2 portrait is a 64x64
-        # backbuffer pixel-grab taken once after an ortho render of the head (fixed pixel size, viewport-
-        # centred). The HERO's is taken by the FRONTEND generator (RCGeneratePortrait -> FUN_00443480) from a
-        # rect HARD-CODED for the 800x600 frontend: {380,277}-{444,341} (imm32 @0x4435ac/b3/ba/c1). Companions
-        # are generated IN-GAME (FUN_004f25bb) from a rect that follows the live window (portrait_grab_rect).
-        # With MENU_169 the frontend runs at the game res, so the fixed rect grabs empty backbuffer. Mirror
-        # the in-game formula for the window size the frontend will actually have (client size = canvas).
-        # STATUS 2026-09-12: applied + verified on Windows 11 / D3D9 at 1920x1080 with a NEWLY created
-        # party -> leader portrait STILL black (companions fine). Necessary-looking but not sufficient;
-        # kept as an opt-in experiment (DS2FIX_PORTRAIT_RECT=1). See docs/TODO.md item 4 for the RE map.
-        _cw = int(canvas_w or _rw); _ch = int(canvas_h or _rh)
-        _rect = portrait_grab_rect(_cw, _ch)
-        _sites = ((0x4435ac, 380), (0x4435b3, 277), (0x4435ba, 444), (0x4435c1, 341))
-        _pre = [bytes(d[txt_fo(a):txt_fo(a)+4]) for a, _ in _sites]
-        if not portrait_rect:
-            pass   # experimental; off by default
-        elif all(p == v.to_bytes(4, 'little') for p, (_, v) in zip(_pre, _sites)):
-            for (a, _), v in zip(_sites, _rect):
-                d[txt_fo(a):txt_fo(a)+4] = v.to_bytes(4, 'little')
-            log(f"OK: [MENU_169][experimental] leader-portrait grab rect 380,277,444,341 -> {','.join(map(str, _rect))} "
-                f"(frontend window {_cw}x{_ch}; FUN_00443480 @0x4435ac)")
-        else:
-            log(f"WARN: leader-portrait grab-rect site unexpected ({b''.join(_pre).hex()}); skipped")
 
     if dst is not None:
         open(dst, 'wb').write(d)
@@ -295,4 +300,5 @@ if __name__ == '__main__':
               ws169=os.environ.get('WS169', '1') != '0',
               res_w=int(os.environ.get('RES_W', '1920')),
               res_h=int(os.environ.get('RES_H', '1080')),
-              borderless=os.environ.get('BORDERLESS', '0') == '1')
+              borderless=os.environ.get('BORDERLESS', '0') == '1',
+              portrait=os.environ.get('PORTRAIT', '1') != '0')

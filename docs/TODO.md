@@ -1,5 +1,13 @@
 # DS2Fix — status & roadmap
 
+## ✅ Done (v0.1.9)
+- **Party-leader portrait fixed** (stock DS2 bug above 1280 px wide): both portrait generators now grab a
+  rect centred on the viewport (see #4 below for the full mechanism). Verified on Windows 11 / D3D9.
+
+## ✅ Done (v0.1.8)
+- **Windows native launcher**: borderless window at the monitor res (the gamescope role), DPI-aware, menus
+  scaled/centred for any resolution, monitor-res + auto UI-scale defaults; Windows end-to-end verified.
+
 ## ✅ Done (v0.1.7)
 - **Save content-footprint bypass** — the v1.0 blocker, solved. DS2 stamps every save with a `content_crc`
   (a hash of the installed resource set) and silently HIDES + refuses saves whose crc no longer matches the
@@ -44,38 +52,21 @@
    rect enlarges the frame but the icon grid won't follow — the classic DS2 in-game-UI-scaling wall. Needs a
    grid-aware transform, not a blanket rect scale. (Good news for testing: xdotool `i`/`j` keys DO reach
    gameplay, so panels can be driven + screenshotted.)
-4. **Party leader (hero) portrait blank / mis-framed** — *NOT a Wine quirk: reproduced on native Windows 11
-   + D3D9 (2026-09-11/12), and it is a STOCK DS2 bug* (DS2TroubleshootingGuide §4.1 "black portraits above
-   1280 px wide"; Nexus mod #146 "High resolution Portrait Fix" targets it, with mixed reports at 1440p/Win11).
-   Windows symptom: slot 1 = green frame with a **black** interior; members 2–8 fine. Wine: face pushed low
-   + green clear.
-   **Bisect on Windows — all negative, none of our patches is the cause:** full patch @2560x1440 and
-   @1920x1080; `DS2FIX_DYNCANVAS=0` (SetScreenSize stub off); `--no-menu169` (800x600 frontend; loaded
-   party); frontend grab rect mirrored to the in-game formula (`DS2FIX_PORTRAIT_RECT=1`, **newly created**
-   party). Companions always fine.
-   **Mechanism (static RE, 2026-09-11 workflow; code in `exe_patch.py` PATCH PORTRAIT):** a DS2 portrait is a
-   64x64 **backbuffer pixel grab** taken once after an ortho render of the head (`0x5011f0`: viewport_w/h ×
-   `ortho_matrix` = metres/pixel → fixed pixel size, viewport-centred), stored as texture `"portrait"` on the
-   GoActor (+0x24). There are TWO generators: the **frontend** one (`RCGeneratePortrait` → `FUN_00443480`)
-   grabs a rect **hard-coded for 800x600**, {380,277}-{444,341} (imm32 @0x4435ac/b3/ba/c1; pixel read
-   `0x510b00`, texture `0x510900`, then `Player::SetPortrait` @0x8268f1), persisted as `portrait-0.bmp` in the
-   party file and reloaded via `load://portrait-%d.bmp`. The **in-game** one (`FUN_004f25bb`) derives the rect
-   from the live window ([0xbcb28c]+0xac..): x=trunc(w×0.00125×380), y=trunc(h×0.0016667×277), +64, plus fudge
-   for 1280x1024 / 1024x768 / 640x480 — companions use this and look right. The hero's actor already carries a
-   portrait texture after load, so the in-game lazy regen (`0x41a754`, `0x4f2e6a`; gated on +0x24 != 0) SKIPS
-   it ⇒ "slot 1 wrong, 2–8 right" is **hero-vs-companion**, not slot 1. Nothing in the tank can fix it
-   (`character_awp.gas` bindings/rects, `portrait_camera` — all tested or shown irrelevant; a tank-side
-   `ortho_matrix` rescale only zooms the head).
-   **Still open:** mirroring the frontend rect did NOT cure a new party on Windows, so the frontend pass must
-   render the head elsewhere or fail the read above 1280 wide. Next candidates: (a) the frontend portrait
-   pass viewport — `0x50b330(1)` / `0x513640` ("begin/end portrait pass" on renderer [0xbcb1ac]+0x24c): an
-   800x600 sub-viewport or separate RT?; (b) `0x510b00` / `0x510900` — a fixed-size scratch surface or a
-   1024/1280 bound (the stock ">1280 wide" threshold is the strongest clue); (c) alternative: NOP the
-   frontend `Player::SetPortrait` call @0x44362a (`e8 c2 32 3e 00` → 5×`90`) so the hero stays portrait-less
-   and the (working) in-game generator makes it — side effect: no leader thumbnail in the load list until the
-   first in-game save.
-   **Stock workaround for users:** launch at ≤1280 wide (e.g. `--res 1024x768`), create/load the party, then
-   raise the resolution in the in-game Options. Cosmetic; the character is fully playable.
+4. **Party leader (hero) portrait blank / mis-framed** — **FIXED in v0.1.9** (exe patch, both generators).
+   Root cause, established with a runtime tracer on Windows 11 (D3D9): a portrait is a 64x64 backbuffer
+   pixel-grab taken after an orthographic render of the character, and the head lands at the **viewport
+   centre** at a fixed pixel size. GPG authored the grab rect for 800x600 as `{380,277}-{444,341}`
+   (= viewport centre + (-20,-23)). The frontend generator (`FUN_00443480`) hard-codes it; the in-game
+   generator (`FUN_004f25bb`) scales the *origin* proportionally (`0.475*w`, `0.4617*h`) so the rect drifts
+   left/up of the head as the window grows (GPG's fudge table for 1280x1024 / 1024x768 / 640x480 hand-
+   corrected exactly that drift). Above ~1280 wide the rect no longer overlaps the head → black (D3D9) /
+   partial (Wine). It hits the hero specifically because the saved Player portrait is reset on load
+   (`0x82c0e7`) and the hero is regenerated in-game every load; companions use template portraits.
+   Fix (`exe_patch.py` PATCH PORTRAIT): frontend rect = `(W/2-20, H/2-23)` + 64 for the frontend res;
+   in-game x/y = `(w>>1)-20` / `(h>>1)-23` from the live window rect, fudges skipped. Verified at 2560x1440:
+   new hero correct in play, after in-game save + reload, and the persisted portrait file is correct.
+   Existing parties are healed on their next load (the load path regenerates the hero anyway).
+   Linux/Wine: same patch applies; re-verify the head lands at the viewport centre under wined3d.
 5. **DXVK for performance** — *re-tested 2026-07-23: DXVK v2.7.1 renders the `object_view` viewports
    correctly* (the old blank-viewport bug was specific to v2.6.2). Verified: main-menu preview, journal, and
    gameplay all render under DXVK v2.7.1 (from `GE-Proton10-34/.../dxvk/i386-windows/d3d9.dll`). The launcher

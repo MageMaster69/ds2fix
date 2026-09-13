@@ -57,10 +57,10 @@ Verify in-game:
 - [x] ✅ **Multiplayer** button is enabled; in-game overlay reads `ds2fix 0.1.8`.
 - [x] ✅ **Saves list and load** — a party created in one run appears and loads in the next.
 - [ ] ⬜ Journal → **Map** (cloth map) — not driven on Windows yet.
-- [x] ❌ ⭐ **Party leader portrait (member 1):** green frame with a **black** interior on native D3D9 at
-      1920x1080 and 2560x1440 (members 2+ fine). So it is NOT a Wine quirk — it is the stock DS2
-      "black portrait above 1280 wide" bug. Bisected: none of the ds2fix patches cause it. Full analysis +
-      next steps in `docs/TODO.md` item 4.
+- [x] ✅ ⭐ **Party leader portrait (member 1):** was black on native D3D9 at 1920x1080 and 2560x1440 in
+      v0.1.8 (the stock DS2 "black portrait above 1280 wide" bug, not Wine). **Fixed in v0.1.9** — verified
+      for a new hero in play, after an in-game save + reload, and the saved party file. Mechanism and patch
+      in `docs/TODO.md` item 4.
 
 ## 5. Saves safety + restore
 - [x] ✅ `ds2fix.exe info` lists save backups once a Save folder exists (auto-made before each patch).
