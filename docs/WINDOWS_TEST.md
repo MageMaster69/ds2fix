@@ -14,7 +14,7 @@ borderless-window launch, `%APPDATA%` config/save-backup — plus the one thing 
 - A Windows 10/11 machine.
 - Dungeon Siege II installed (GOG or Steam; base DS2, matching the Linux target). Note the folder that
   contains `DungeonSiege2.exe`.
-- The build: download `ds2fix.exe` (CLI) and `ds2fix-gui.exe` (GUI) from the latest **GitHub Release**
+- The build: download `ds2fix_windows.exe` (CLI) and `ds2fix-gui_windows.exe` (GUI) from the latest **GitHub Release**
   (https://github.com/twhalley/ds2fix/releases). No Python needed.
 
 ## 1. Detection (registry auto-detect)

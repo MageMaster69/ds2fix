@@ -1,13 +1,35 @@
 # DS2Fix
 
-Modernizes a legally-owned **Dungeon Siege II** install (GOG) — widescreen HUD, native 16:9 menus,
-fullscreen, campaign difficulties unlocked, and a "ds2fix" version label — via reversible binary patches
-+ data-side tank mods. Ships as a **cross-platform CLI + GUI** (Linux and Windows). Does **not** distribute
-the game; it patches an existing install in place, always from a pristine base.
+**Dungeon Siege II, modernized.** Widescreen HUD, native 16:9 menus scaled for your monitor, borderless
+fullscreen that alt-tabs cleanly, every campaign difficulty unlocked from the start, saves that never
+disappear, scaled in-game panels, a working party-leader portrait, and an uncapped framerate — for a
+legally-owned GOG install of *Dungeon Siege II* v2.3, on **Windows** and **Linux** (Wine / Proton).
 
-Status: **v1.0 (v0.1.10, working)** — everything below verified in-game on Linux/Wine **and natively on
-Windows 11** (same patcher core; the Windows launcher runs the game as a borderless window at your monitor's
-resolution — the gamescope role — so alt-tab is clean and there is no exclusive-mode switch).
+ds2fix does not distribute the game. It patches your install in place from a pristine backup, and
+**Restore (uninstall)** puts the original files back. Saves are backed up before every patch and never touched.
+
+![Main menu at 2560x1440, native 16:9, menus scaled 2x](docs/img/main-menu-1440p.jpg)
+
+## Download and run
+
+Grab the latest build from the [Releases page](https://github.com/twhalley/ds2fix/releases). No Python needed.
+
+| Platform | File | Run |
+|---|---|---|
+| Windows 10/11 | `ds2fix-gui_windows.exe` (GUI) · `ds2fix_windows.exe` (command line) | double-click the GUI, press **Patch + Play** |
+| Linux | `ds2fix-gui_linux` (GUI) · `ds2fix_linux` (command line) | `chmod +x ds2fix-gui_linux && ./ds2fix-gui_linux` |
+
+The install is auto-detected (GOG and Steam registry keys on Windows; Wine prefixes, Steam libraries and
+Heroic on Linux). The GUI defaults to your monitor's resolution and a matching UI scale; change either, then
+**Patch + Play**. To go back to the stock game, press **Restore (uninstall)**.
+
+| | |
+|---|---|
+| ![Scaled inventory and HUD at 1440p](docs/img/inventory-1440p.jpg) | ![Gameplay HUD with the party-leader portrait](docs/img/gameplay-1440p.jpg) |
+
+Status: **v1.0 (v0.1.10)** — everything in the table below is verified in-game on Windows 11 (native D3D9)
+and on Linux/Wine (gamescope launcher). The Windows launcher runs the game as a borderless window at the
+monitor's resolution (the gamescope role), so alt-tab is clean and there is no exclusive-mode switch.
 
 ## What works
 
@@ -39,11 +61,11 @@ resolution — the gamescope role — so alt-tab is clean and there is no exclus
 
 ## Quick start
 
-**GUI** — double-click `ds2fix-gui` (Linux) / `ds2fix-gui.exe` (Windows): it auto-detects the install,
+**GUI** — double-click `ds2fix-gui_linux` (Linux) / `ds2fix-gui_windows.exe` (Windows): it auto-detects the install,
 lets you pick a resolution (16:9 or 4:3 presets) / UI scale / 16:9-menu, then **Patch**, **Play**,
-**Patch + Play**, or **Restore**.
+**Patch + Play**, or **Restore (uninstall)**.
 
-**CLI** (`ds2fix` / `ds2fix.exe`, or `python ds2fix.py`):
+**CLI** (`ds2fix_linux` / `ds2fix_windows.exe`, or `python ds2fix.py`):
 
 ```
 ds2fix detect                   # find + report the install
@@ -105,7 +127,7 @@ so mods are safe to add and remove with your saves intact.
 Standalone binaries (no Python needed) are built by CI — see [Releases](../../releases), or build locally:
 
 ```
-pip install pyinstaller && python build.py     # -> dist/ds2fix(.exe) + dist/ds2fix-gui(.exe)
+pip install pyinstaller && python build.py     # -> dist/ds2fix_linux + ds2fix-gui_linux  (or *_windows.exe)
 ```
 
 PyInstaller doesn't cross-compile, so build each OS on its own machine (the CI workflow in

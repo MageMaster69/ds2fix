@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Build standalone ds2fix binaries (CLI + GUI) with PyInstaller.
 
-Run on the target OS to produce that OS's binaries (PyInstaller does not cross-compile):
-  Linux   -> dist/ds2fix        + dist/ds2fix-gui
-  Windows -> dist\\ds2fix.exe    + dist\\ds2fix-gui.exe
+Run on the target OS to produce that OS's binaries (PyInstaller does not cross-compile). Outputs carry the
+platform in their name so the release assets are unambiguous:
+  Linux   -> dist/ds2fix_linux          + dist/ds2fix-gui_linux
+  Windows -> dist\\ds2fix_windows.exe    + dist\\ds2fix-gui_windows.exe
 
 Usage:  python build.py            (needs `pip install pyinstaller` — or use CI, see .github/workflows)
 """
@@ -31,8 +32,9 @@ def main():
         import PyInstaller  # noqa: F401
     except ImportError:
         sys.exit("PyInstaller not found. Install it first:  pip install pyinstaller")
-    run("ds2fix.py", "ds2fix", windowed=False)          # CLI (console)
-    run("ds2fix_gui.py", "ds2fix-gui", windowed=True)   # GUI (no console window)
+    suffix = "_windows" if os.name == "nt" else "_linux"
+    run("ds2fix.py", "ds2fix" + suffix, windowed=False)          # CLI (console)
+    run("ds2fix_gui.py", "ds2fix-gui" + suffix, windowed=True)   # GUI (no console window)
     # tidy PyInstaller scratch
     for d in ("build",):
         shutil.rmtree(ROOT / d, ignore_errors=True)

@@ -73,11 +73,13 @@ class App:
         self.btn_patch = ttk.Button(act, text="Patch", command=lambda: self.run(self._patch))
         self.btn_playonly = ttk.Button(act, text="Play", command=lambda: self.run(self._play_only))
         self.btn_play = ttk.Button(act, text="Patch + Play", command=lambda: self.run(self._play))
-        self.btn_restore = ttk.Button(act, text="Restore", command=lambda: self.run(self._restore))
+        self.btn_restore = ttk.Button(act, text="Restore (uninstall)", command=lambda: self.run(self._restore))
         self.btn_patch.pack(side="left", padx=4)
         self.btn_playonly.pack(side="left", padx=4)
         self.btn_play.pack(side="left", padx=4)
         self.btn_restore.pack(side="left", padx=4)
+        ttk.Label(act, text="Restore = uninstall: puts the original game files back. Saves are never touched.",
+                  foreground="#666").pack(side="left", padx=10)
 
         # --- saves ---
         sav = ttk.LabelFrame(root, text="Saves  (auto-backed-up before every patch)")
