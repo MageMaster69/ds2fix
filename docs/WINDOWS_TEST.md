@@ -6,8 +6,9 @@ borderless-window launch, `%APPDATA%` config/save-backup — plus the one thing 
 **party leader's portrait** renders correctly on native D3D9).
 
 > **Run 2026-09-11/12** — Windows 11 Pro 26200, GOG DS2 v2.3 in `C:\GOG Games\Dungeon Siege 2`, Intel UHD 620,
-> 2560x1440 at 200% display scaling, ds2fix 0.1.8 from source (`python ds2fix.py …`) and PyInstaller
-> `ds2fix.exe` / `ds2fix-gui.exe` built locally. Results are marked ✅ / ❌ / ⬜ (not run) below.
+> 2560x1440 at 200% display scaling. First pass with ds2fix 0.1.8 from source; **repeated 2026-09-13 with the
+> released v0.1.9 binaries** (`ds2fix.exe` / `ds2fix-gui.exe` downloaded from the GitHub Release) — every ✅ below
+> holds for the release build. Results are marked ✅ / ❌ / ⬜ (not run) below.
 
 ## 0. Prerequisites
 - A Windows 10/11 machine.
@@ -39,7 +40,8 @@ ds2fix.exe patch
 - [x] ✅ Backs up saves, writes `DungeonSiege2.exe.ds2fix-pristine` + `Logic.ds2res.ds2fix-pristine`,
       patches exe + tank, ends `patch complete.` (every exe patch site matched the GOG Windows exe).
 - [x] ✅ `ds2fix.exe info` now shows `exe: PATCHED (ds2fix)`.
-- [x] ✅ Re-running `patch` is idempotent (rebuilds from pristine, never double-patches).
+- [x] ✅ Re-running `patch` is idempotent (rebuilds from pristine, never double-patches) — identical exe MD5
+      across repeated runs of the release binary.
 
 ## 4. Launch + in-game verification
 ```
@@ -67,8 +69,10 @@ Verify in-game:
 - [x] ✅ `ds2fix.exe restore` reverts exe + tank to pristine; `info` shows `pristine/unpatched` again.
 
 ## 6. GUI smoke test
-- [ ] ⬜ `ds2fix-gui.exe` builds (PyInstaller, 10 MB) and its defaults follow the monitor res / auto scale;
-      the click-through (detect → Patch + Play) has not been driven on Windows yet.
+- [x] ✅ `ds2fix-gui.exe` (release build) opens, auto-detects the install and shows its patch state; defaults
+      are the monitor res (2560x1440) and `auto` UI scale. **Patch + Play** re-patches, launches the borderless
+      window and places it at (0,0); the log pane shows the patch output and "window placed". **Restore**
+      reverts to pristine (confirmed with `ds2fix.exe info`).
 
 ## What to report back
 - Any command that errors (copy the message).
