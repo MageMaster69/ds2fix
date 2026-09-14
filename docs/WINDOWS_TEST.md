@@ -65,7 +65,7 @@ Verify in-game:
       loading with the fixed build: the hero's portrait is regenerated on load, old saves need no re-creation.
 - [x] ✅ 4:3 mode: `--res 1440x1080` → borderless window centred on the 1440p monitor, menus 1.5×, gameplay + inventory OK.
 - [x] ✅ **In-game panels** (v0.1.10): inventory / character / spell book / specialties scaled 1.5× (1080p) and
-      2× (1440p); item grid cells and icons scale; drag from an equipment slot into the grid, move between cells
+      2× (1440p); item grid cells, icons and the icon carried on the cursor scale; drag from an equipment slot into the grid, move between cells
       and re-equip all work (verified with synthetic input at both resolutions).
 - [x] ✅ ⭐ **Party leader portrait (member 1):** was black on native D3D9 at 1920x1080 and 2560x1440 in
       v0.1.8 (the stock DS2 "black portrait above 1280 wide" bug, not Wine). **Fixed in v0.1.9** — verified

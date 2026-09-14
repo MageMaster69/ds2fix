@@ -253,6 +253,19 @@ class TestExePatch(unittest.TestCase):
         p = exe_patch.patch_exe(str(_PRISTINE_EXE), None, gridscale=False, log=lambda m: None)
         self.assertEqual(p[fo:fo + 20], pristine[fo:fo + 20])                     # opt-out
 
+    def test_dragscale_hook_and_rolloff_patch(self):
+        pristine = _PRISTINE_EXE.read_bytes()
+        fo = lambda va: va - 0x400000
+        self.assertEqual(pristine[fo(0x7820a2):fo(0x7820a2) + 5], bytes.fromhex('a1 d4 b2 bc 00'))
+        self.assertEqual(pristine[fo(0x77dccf):fo(0x77dccf) + 2], bytes.fromhex('74 66'))
+        p = exe_patch.patch_exe(str(_PRISTINE_EXE), None, res_h=1440, log=lambda m: None)
+        self.assertEqual(p[fo(0x7820a2)], 0xe9)                                       # hook installed
+        self.assertEqual(p[fo(0x77dccf):fo(0x77dccf) + 2], bytes.fromhex('90 90'))     # P3
+        self.assertEqual(struct.unpack('<f', p[fo(0x77dd0c):fo(0x77dd0c) + 4])[0], 2.0)   # P1 = UI scale @1440p
+        p = exe_patch.patch_exe(str(_PRISTINE_EXE), None, gridscale=False, log=lambda m: None)
+        self.assertEqual(p[fo(0x7820a2):fo(0x7820a2) + 5], bytes.fromhex('a1 d4 b2 bc 00'))   # off with gridscale
+        self.assertEqual(p[fo(0x77dccf):fo(0x77dccf) + 2], bytes.fromhex('74 66'))
+
     def test_save_footprint_check_bypassed(self):
         # IsContentCrcAcceptable (FUN_004139d0) must be forced to "mov al,1 ; ret 4" so saves always
         # list/load regardless of the install's content signature.

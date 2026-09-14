@@ -262,8 +262,9 @@ def patch_exe(orig, dst=None, menu169=True, choke=True, ws169=True, res_w=1920, 
     _gs_cur = bytes(d[txt_fo(_gs_site):txt_fo(_gs_site)+20])
     if gridscale:
         _us = float(ui_scale) if ui_scale else round(int(res_h) / 720.0, 2)
+        KS = S + 0xF0                  # the UI-scale float constant (shared with PATCH DRAGSCALE below)
         if _gs_cur == _gs_orig:
-            S3, KS = S + 0x60, S + 0xF0
+            S3 = S + 0x60
             st = bytearray()
             st += bytes([0x8b,0x40,0x38])                          # mov eax,[eax+0x38]
             st += bytes([0x8b,0x88,0xd0,0x00,0x00,0x00])           # mov ecx,[eax+0xd0]   (the member's gridbox)
@@ -281,6 +282,46 @@ def patch_exe(orig, dst=None, menu169=True, choke=True, ws169=True, res_w=1920, 
             log('OK: inventory grid scale already patched')
         else:
             log(f'WARN: gridbox SetScale call site unexpected ({_gs_cur.hex()}); skipped')
+
+        # ---- PATCH DRAGSCALE: the item icon carried on the cursor while dragging. The dragged icon IS the UIItem
+        # window drawn at its own rect; UIItem::SetScale (vslot +0x5c) sets that rect to (texture native size x
+        # scale). Two things left it at 1x with scaled grids: (a) items in equipment slots sit at scale 1.0, so a
+        # slot pickup starts 1x; (b) UIGridbox's roll-off handler (msg 0xc @0x77dc57) resets every dragged item to
+        # 1.0 when the cursor leaves a grid whose scale != 1.0 (dead code in stock DS2, live with GRIDSCALE).
+        # Fix: (P1-P3) make that roll-off reset use the UI scale instead of 1.0; (stub) at UIItem::SetActive(true)
+        # (0x781fd0, the common funnel for gridbox and itemslot pickups) size the item to native x UI scale right
+        # before it is centred on the cursor. Verified live on Windows at 2560x1440 (A/B: 1x -> 2x). Over an
+        # unscaled store/stash grid the grid's hover code still drops it to 1x to match those cells.
+        _ds_site, _ds_back = 0x7820a2, 0x7820b3
+        _ds_orig = bytes.fromhex('a1 d4 b2 bc 00 8b 88 94 00 00 00 8b 80 90 00 00 00 8b 16 51 50 8b ce ff 52 6c')
+        _ds_cur = bytes(d[txt_fo(_ds_site):txt_fo(_ds_site)+len(_ds_orig)])
+        _ds_pristine = (_ds_cur == _ds_orig
+                        and bytes(d[txt_fo(0x77dccf):txt_fo(0x77dccf)+2]) == bytes.fromhex('74 66')
+                        and bytes(d[txt_fo(0x77dcf8):txt_fo(0x77dcf8)+6]) == bytes.fromhex('d9 05 14 ec a8 00')
+                        and bytes(d[txt_fo(0x77dd0b):txt_fo(0x77dd0b)+5]) == bytes.fromhex('68 00 00 80 3f'))
+        if _ds_pristine:
+            d[txt_fo(0x77dccf):txt_fo(0x77dccf)+2] = bytes.fromhex('90 90')                  # P3: no 'grid scale == 1.0 -> skip'
+            struct.pack_into('<I', d, txt_fo(0x77dcfa), KS)                                 # P2: compare against KS, not 1.0
+            struct.pack_into('<f', d, txt_fo(0x77dd0c), _us)                                # P1: SetScale(KS), not 1.0
+            S4 = S + 0x90
+            st4 = bytearray()
+            st4 += bytes.fromhex('83 be a8 00 00 00 00')                 # cmp dword [esi+0xa8], 0   (texture loaded?)
+            st4 += bytes([0x74, 0x00]); _jfix = len(st4) - 1             # je .skip
+            st4 += bytes.fromhex('c7 86 cc 01 00 00 00 00 00 00')        # mov dword [esi+0x1cc], 0.0 (defeat SetScale's early-out)
+            st4 += bytes.fromhex('68 00 00 80 3f 8b ce 8b 06 ff 50 5c')  # push 1.0; ecx=this; call [vt+0x5c]  -> rect = native
+            st4 += bytes([0xff, 0x35]) + struct.pack('<I', KS)           # push dword [KS]
+            st4 += bytes.fromhex('8b ce 8b 06 ff 50 5c')                 # call SetScale(KS)                 -> rect *= KS
+            st4[_jfix] = len(st4) - (_jfix + 1)                          # .skip:
+            st4 += _ds_orig[:17]                                         # the 17 displaced bytes (UIShell cursor x/y)
+            st4 += bytes([0xe9]) + rel32(S4 + len(st4) + 5, _ds_back)
+            assert S4 + len(st4) <= KS, "DRAGSCALE stub overlaps the KS constant"
+            d[new_raw+0x90 : new_raw+0x90+len(st4)] = st4
+            d[txt_fo(_ds_site):txt_fo(_ds_site)+17] = bytes([0xe9]) + rel32(_ds_site + 5, S4) + bytes([0x90]) * 12
+            log(f"OK: dragged-item icon at x{_us:g} (UIItem::SetActive hook @0x7820a2 -> stub @{S4:#x}; grid roll-off keeps it)")
+        elif _ds_cur[0] == 0xe9:
+            log('OK: dragged-item icon scale already patched')
+        else:
+            log(f'WARN: DRAGSCALE site unexpected ({_ds_cur[:8].hex()}); skipped')
 
     if MENU_169:
         _rw = int(res_w); _rh = int(res_h)

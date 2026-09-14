@@ -63,7 +63,10 @@
    the panel opens (0x49c57f). ds2fix keeps `box_width` at 32 in the data, scales the gridbox rect with the
    panel, and the exe patch GRIDSCALE feeds the UI scale into that call (stub in the `.ds2fix` section).
    Verified on Windows at 1.5× (1080p) and 2× (1440p): 48/64-px cells, item icons scale, drop / move /
-   re-equip / hover all exact. Known cosmetic: the icon held on the cursor while dragging is drawn 1×.
+   re-equip / hover all exact. The icon held on the cursor while dragging is scaled too (PATCH DRAGSCALE:
+   the dragged icon is the UIItem window at its own rect; a slot pickup started at scale 1.0 and the grid's
+   roll-off handler reset dragged items to 1.0 — hooked UIItem::SetActive and re-pointed the roll-off reset
+   at the UI scale. Found with the live tracers, A/B verified 1× → 2× at 1440p).
    Not scaled (deliberate): store / stash / trade / pet panels — their grids never get SetScale, so they
    stay consistent at 1×. Linux/Wine: same data + exe patch; not yet re-verified there.
 4. **Party leader (hero) portrait blank / mis-framed** — **FIXED in v0.1.9** (exe patch, both generators).
