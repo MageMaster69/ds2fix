@@ -46,11 +46,14 @@
 1. **Test normal co-op multiplayer** — host a game + join via **LAN** and **direct-IP** (the MP button is
    already unlocked; DS2 MP is peer-to-peer over DirectPlay8). *No dedicated server* — DS2 has no such
    concept (host-based P2P), so that idea is dropped.
-2. **Re-enable the Journal → Map cloth-map scaling** — now that frontend object_view scaling is proven to
-   work on wined3d, re-test the backend map targets (currently commented out in `_target_list`) and confirm
-   the cloth map scales cleanly (the "out of line" symptom was the same object_view offset just fixed).
-   *Windows 2026-09-13:* the unscaled Journal → Map renders correctly at 1440p (cloth map, icons, travel log),
-   and the M-key full-screen map is fine; only the size is still native.
+2. **Journal -> Map cloth-map scaling** -- **DONE in v0.1.10.** The whole journal (frame, books, pages), the
+   teleporter maps and the M-key drawn map are scaled+centred again, object_view viewports included. The
+   long-standing 'map out of line' symptom was never an engine/object_view problem: mapbook.gas and drawn_map.gas
+   tab-align their `rect` lines (`rect<tabs>= 100,110,600,540;`) and the transform matched only `rect = `, so
+   exactly 6 rects (the map viewports) stayed unscaled while everything around them moved. Live memory confirmed
+   the object_view still held the authored rect. Regex widened to `rect\s*=\s*` (no other target has such
+   lines). Verified on Windows 11 at 2560x1440: cloth map inside the scaled page, compass + travel log
+   aligned. Not yet driven: teleporter maps and the M-key drawn map (no key opened it on the test box).
 3. **Scale in-game panels** (inventory / character / spellbook / skills) — **DONE in v0.1.10.** The panels
    (`character_*.gas`, `skills_*_tab.gas`, `character_grids.gas`) are scaled about the top-left origin at the
    UI scale (rects + the pixel-valued fields `max_width/height`, `parent_offset`, `drag_*`, `text_rect_deflate_*`).

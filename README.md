@@ -195,7 +195,6 @@ Env: `MENU_169` (0 disables the 16:9 menu), `RES_W`/`RES_H` (forced frontend res
   on exit.)
 
 ## Roadmap (backlog)
-- Re-enable Journal→Map cloth-map scaling + in-game paperdoll scaling (same object_view fix, now proven)
 - Co-op multiplayer revival (direct-IP/LAN over VPN; GameSpy master-server replacement) — GameSpy is dead
 
 ---

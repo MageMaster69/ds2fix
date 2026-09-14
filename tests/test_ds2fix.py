@@ -95,6 +95,15 @@ class TestTankTransform(unittest.TestCase):
         self.assertIn(b"f box_width = 32.000000;", out)       # cell size untouched (engine scales it)
         self.assertIn(b"i border_padding = 10;", out)
 
+    def test_tab_aligned_rect_is_scaled(self):
+        # mapbook.gas / drawn_map.gas write `rect<tabs>= ...;` -- must scale like `rect = ...;`
+        src = b'[t:object_view,n:map_view]\n\t\trect\t\t\t\t= 100,110,600,540;\n'
+        out = tank.scale_center(src, 2.0, scale_object_view=True, canvas=(2560, 1440))
+        self.assertIn(b'rect = 680,340,1680,1200', out)
+        fill = tank.scale_center(b'[t:object_view,n:map_view]\n\trect\t= 0,0,800,600;\n', 2.0,
+                                 scale_object_view=True, fill_object_view=True, canvas=(2560, 1440))
+        self.assertIn(b'rect = 0,0,2560,1440', fill)
+
     def test_is_map_target(self):
         self.assertTrue(tank._is_map_target("ui/interfaces/backend/journal/books/mapbook/mapbook.gas"))
         self.assertTrue(tank._is_map_target("ui/interfaces/backend/teleport/teleport.gas"))

@@ -178,12 +178,15 @@ def scale_center(u, scale, iw=800, ih=600, scale_object_view=False, fill_object_
         if m:
             elem = m.group(1).strip()
         if elem == b'object_view' and fill_object_view:
-            out.append(re.sub(rb'rect = -?\d+,\s*-?\d+,\s*-?\d+,\s*-?\d+',
+            out.append(re.sub(rb'rect\s*=\s*-?\d+,\s*-?\d+,\s*-?\d+,\s*-?\d+',
                               b'rect = 0,0,%d,%d' % (cw, ch), line))   # full-screen map fills the client
         elif elem == b'object_view' and not scale_object_view:
             out.append(line)                      # verbatim: never touch a frontend preview viewport
         else:
-            out.append(re.sub(rb'rect = (-?\d+),\s*(-?\d+),\s*(-?\d+),\s*(-?\d+)', repl, line))
+            # `rect\s*=`: the two cloth-map screens (mapbook, drawn_map) tab-align their object_view rect
+            # (`rect<tabs>= 100,110,600,540;`); matching only `rect = ` left those 6 rects unscaled while
+            # everything around them moved -- the long-standing 'map out of line' symptom.
+            out.append(re.sub(rb'rect\s*=\s*(-?\d+),\s*(-?\d+),\s*(-?\d+),\s*(-?\d+)', repl, line))
     u = b'\n'.join(out)
     u = re.sub(rb'[ \t]+(\r?\n)', rb'\1', u)          # trailing whitespace
     u = re.sub(rb'(?m)^[ \t]*\r?\n', b'', u)           # blank lines
@@ -228,7 +231,7 @@ def parse(d):
     return files, sorted(offs)
 
 
-def _target_list(files, panels=True):
+def _target_list(files, panels=True, maps=True):
     """Auto-discover every dialog/menu interface to scale+center: all of ui/interfaces/frontend/ and
     ui/interfaces/multiplayer/, minus the in-game HUD panels (which anchor to screen edges, not centre).
     Plus the backend ESC menu and the overlay target. Robust to new dialogs across game versions."""
@@ -238,11 +241,11 @@ def _target_list(files, panels=True):
                and any(p.startswith(x) for x in inc)
                and not any(x in p for x in exc)]
     targets.append('ui/interfaces/backend/in_game_menu/in_game_menu.gas')   # the ESC/pause menu
-    # Map/journal cloth-map scaling is DISABLED for now: under wined3d the map RENDERS, but SCALING its
-    # [t:object_view] leaves the cloth map "out of line" (the 3D content offsets from its enlarged frame —
-    # the same actor-offset the character models show at the 1920 backbuffer). Native (unscaled) renders
-    # aligned. Revisit once the object_view viewport offset is solved. See docs/MAP_PORTING_TODO.md.
-    # targets += [p for p in files if p.endswith('.gas') and _is_map_target(p) and '/dir.lqd22' not in p]
+    # Journal/teleport cloth-map screens: the whole journal (frame + books + pages) plus the teleporter maps
+    # are scaled+centred, object_view map viewports included. (The old 'map out of line' symptom was the
+    # tab-aligned `rect` lines in mapbook/drawn_map escaping the `rect = ` regex -- fixed in scale_center.)
+    if maps:
+        targets += [p for p in files if p.endswith('.gas') and _is_map_target(p) and '/dir.lqd22' not in p]
     targets = sorted(set(targets))
     if OVERLAY_TARGET not in targets:
         targets.append(OVERLAY_TARGET)
@@ -325,7 +328,7 @@ def _edit_one(d, files, offs, path, scale, version, write_end, log, canvas=None)
     log(f"OK {path}: {len(u)}->{len(u2)}B, {nch} chunk(s), {where}")
 
 
-def edit_tank(tank, scale=1.5, backup=True, version=None, log=print, canvas=None, panels=True):
+def edit_tank(tank, scale=1.5, backup=True, version=None, log=print, canvas=None, panels=True, maps=True):
     """Edit a DSg2Tank (.ds2res) in place: scale/center the menu interfaces + inject the overlay.
     Writes a `.pre-edit.bak` next to it (if backup). Requires the exe CRC check disabled.
     `canvas=(w,h)` = the game window's client size to centre into (default: the Linux 1912x1046)."""
@@ -337,7 +340,7 @@ def edit_tank(tank, scale=1.5, backup=True, version=None, log=print, canvas=None
         shutil.copy2(tank, tank+'.pre-edit.bak')
     write_end = [len(d)]   # append cursor for relocated files (list = mutable closure)
     ok = skipped = 0
-    for path in _target_list(files, panels=panels):
+    for path in _target_list(files, panels=panels, maps=maps):
         if path not in files:
             log(f"SKIP {path}: not in tank"); skipped += 1; continue
         try:
