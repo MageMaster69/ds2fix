@@ -7,8 +7,10 @@ borderless-window launch, `%APPDATA%` config/save-backup — plus the one thing 
 
 > **Run 2026-09-11/12** — Windows 11 Pro 26200, GOG DS2 v2.3 in `C:\GOG Games\Dungeon Siege 2`, Intel UHD 620,
 > 2560x1440 at 200% display scaling. First pass with ds2fix 0.1.8 from source; **repeated 2026-09-13 with the
-> released v0.1.9 binaries** (`ds2fix.exe` / `ds2fix-gui.exe` downloaded from the GitHub Release) — every ✅ below
-> holds for the release build. Results are marked ✅ / ❌ / ⬜ (not run) below.
+> released v0.1.9 binaries** and again **2026-09-14 with the released v0.1.10 binaries** (`ds2fix_windows.exe` /
+> `ds2fix-gui_windows.exe` downloaded from the GitHub Release: detect, restore, info, patch, idempotent re-patch,
+> `play` into gameplay with the scaled dragged-item icon, GUI Patch + Play and Restore) — every ✅ below holds for
+> the release build. Results are marked ✅ / ❌ / ⬜ (not run) below.
 
 ## 0. Prerequisites
 - A Windows 10/11 machine.
@@ -77,10 +79,10 @@ Verify in-game:
 - [x] ✅ `ds2fix.exe restore` reverts exe + tank to pristine; `info` shows `pristine/unpatched` again.
 
 ## 6. GUI smoke test
-- [x] ✅ `ds2fix-gui.exe` (release build) opens, auto-detects the install and shows its patch state; defaults
+- [x] ✅ `ds2fix-gui_windows.exe` (release build) opens, auto-detects the install and shows its patch state; defaults
       are the monitor res (2560x1440) and `auto` UI scale. **Patch + Play** re-patches, launches the borderless
-      window and places it at (0,0); the log pane shows the patch output and "window placed". **Restore**
-      reverts to pristine (confirmed with `ds2fix.exe info`).
+      window and places it at (0,0); the log pane shows the patch output and "window placed". **Restore (uninstall)**
+      reverts to pristine (confirmed with `ds2fix_windows.exe info`).
 
 ## What to report back
 - Any command that errors (copy the message).
