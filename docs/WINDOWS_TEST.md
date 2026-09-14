@@ -58,7 +58,11 @@ Verify in-game:
       and the create-hero paperdoll sit in their panels; all three difficulties selectable.
 - [x] ✅ **Multiplayer** button is enabled; in-game overlay reads `ds2fix 0.1.8`.
 - [x] ✅ **Saves list and load** — a party created in one run appears and loads in the next.
-- [x] ✅ Journal → **Map** (cloth map) renders at 1440p (native size); M-key world map fine.
+- [x] ✅ Journal → **Map** (cloth map) **scales with the journal** at 1440p (v0.1.10: the tab-aligned `rect`
+      fix); compass and travel log aligned. (There is no full-screen world-map key in retail DS2 — the
+      `toggle_cloth_map` binding is commented out in `config/input_bindings.gas` — so nothing to drive there.)
+- [x] ✅ A party created BEFORE the v0.1.9 portrait fix ("Tester") shows the correct leader portrait after
+      loading with the fixed build: the hero's portrait is regenerated on load, old saves need no re-creation.
 - [x] ✅ 4:3 mode: `--res 1440x1080` → borderless window centred on the 1440p monitor, menus 1.5×, gameplay + inventory OK.
 - [x] ✅ **In-game panels** (v0.1.10): inventory / character / spell book / specialties scaled 1.5× (1080p) and
       2× (1440p); item grid cells and icons scale; drag from an equipment slot into the grid, move between cells
