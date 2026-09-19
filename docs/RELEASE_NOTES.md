@@ -15,6 +15,7 @@ No Python needed. The install is auto-detected (GOG/Steam registry on Windows; W
 - **Party-leader portrait fixed** (v0.1.9): stock DS2 shows the leader's HUD portrait black above 1280 px wide. Both of the game's portrait generators now grab the right pixels at any resolution. Existing parties heal on their next load.
 - **In-game panels scaled** (v0.1.10): inventory, character, spell book and specialties panels are scaled with the menus, item grids included. Drag and drop, hover and re-equip all work at the scaled size, and the icon on the cursor while dragging is scaled too.
 - **Journal map scaled** (v0.1.10): the Journal's cloth map (and the teleporter maps) now scale with the journal instead of staying small in the corner.
+- **In-game dialogs scaled** (v0.1.11): the NPC conversation box, the Options menu and its tabs, tutorial tips, yes/no confirmations, defeat, save/load and quick-save dialogs are scaled like the menus (the engine centres them; ds2fix now scales them).
 - Verified end to end on Windows 11 and, for the launcher and menus, on Linux/Wine.
 
 ### Uninstall

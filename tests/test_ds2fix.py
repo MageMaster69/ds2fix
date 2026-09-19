@@ -87,6 +87,18 @@ class TestTankTransform(unittest.TestCase):
         self.assertIn(b"i max_width = 174;", out)
         self.assertIn(b"i draw_order = 101;", out)            # non-pixel ints untouched
 
+    def test_dialogue_box_is_a_panel_target(self):
+        self.assertIn('ui/interfaces/backend/dialogue_box/dialogue_box.gas', tank.PANEL_TARGETS)
+        src = b"[t:dialog_box,n:dialog_box_main_bg]" + b"\n{\n\t\trect = 236,21,788,249;\n}\n"
+        self.assertIn(b"rect = 472,42,1576,498", tank.scale_panel(src, 2.0))
+
+    def test_centered_dialog_detection(self):
+        NL, TAB = b"\n", b"\t"
+        self.assertTrue(tank.is_centered_dialog(b"[t:interface,n:options]" + NL + b"{" + NL + TAB + b"centered = background;" + NL))
+        self.assertTrue(tank.is_centered_dialog(TAB + b"centered" + TAB + b"= dialog_box_bg;" + b"\r" + NL))
+        self.assertFalse(tank.is_centered_dialog(TAB + b"justify = center;" + NL + TAB + b"  b center_height = true;" + NL))
+        self.assertFalse(tank.is_centered_dialog(b"// centered = old;" + NL))
+
     def test_scale_gridbox_scales_rect_not_cells(self):
         src = (b"[t:gridbox,n:g]\n{\n\t  i border_padding = 10;\n\t  f box_height = 32.000000;\n"
                b"\t  f box_width = 32.000000;\n\t  i columns = 5;\n\t\trect = 366,132,526,548;\n\t  i rows = 13;\n}\n")

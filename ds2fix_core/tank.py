@@ -92,6 +92,10 @@ PANEL_TARGETS = (
     'ui/interfaces/backend/skills_combat_tab/skills_combat_tab.gas',
     'ui/interfaces/backend/skills_nature_tab/skills_nature_tab.gas',
     'ui/interfaces/backend/skills_general_tab/skills_general_tab.gas',
+    # NPC conversation box: authored top-centre of the 800x600 canvas (236,21..788,379), drawn at raw coords at
+    # any res -> a 550x360 px box in the top-left of a 1440p screen. Same top-left-origin scale as the panels
+    # (its options button is edge-anchored and the engine re-places it from the anchor ints, untouched).
+    'ui/interfaces/backend/dialogue_box/dialogue_box.gas',
 )
 # pixel-valued fields (besides rect) that must scale with the panel. NOT the [t:gridbox] cell size
 # (box_width/box_height/border_padding): the engine scales grids itself via UIGridbox::SetScale, fed by the
@@ -99,6 +103,20 @@ PANEL_TARGETS = (
 PANEL_PIXEL_FIELDS = ('max_width', 'max_height', 'parent_offset', 'drag_x', 'drag_y', 'drag_dock_max_y',
                       'text_rect_deflate_x', 'text_rect_deflate_y')
 GRIDBOX_FILE = 'ui/interfaces/backend/character_grids/character_grids.gas'
+
+# Engine-centred in-game dialogs. Any interface that declares `centered = <element>;` at interface level is
+# re-centred on the LIVE screen by the engine when it opens (verified: the ESC menu and the Options menu land
+# dead-centre at 2560x1440 with no ds2fix help) but is drawn at its native 800x600 (or 640x480) size. So the
+# right transform is the panel one -- scale rects + pixel fields about the origin -- and the engine does the
+# centring. Auto-discovered from the tank (35 dialogs: Options + its tabs, tutorial tips, yes/no dialogs,
+# defeat, save/load, quick-save, trainer/disband/pet-name confirmations, load-quest, end-game ...). The store
+# family (store, stash, pet store, enchanter, trade, hire) is NOT centred and stays native by design.
+_CENTERED_RE = re.compile(rb'(?m)^\s*centered\s*=\s*[A-Za-z0-9_]+\s*;')
+
+
+def is_centered_dialog(u):
+    """True if the interface source declares the interface-level `centered = ...;` directive."""
+    return _CENTERED_RE.search(u) is not None
 
 
 def scale_gridbox(u, scale):
@@ -231,7 +249,7 @@ def parse(d):
     return files, sorted(offs)
 
 
-def _target_list(files, panels=True, maps=True):
+def _target_list(files, panels=True, maps=True, dialogs=True, read=None):
     """Auto-discover every dialog/menu interface to scale+center: all of ui/interfaces/frontend/ and
     ui/interfaces/multiplayer/, minus the in-game HUD panels (which anchor to screen edges, not centre).
     Plus the backend ESC menu and the overlay target. Robust to new dialogs across game versions."""
@@ -246,6 +264,10 @@ def _target_list(files, panels=True, maps=True):
     # tab-aligned `rect` lines in mapbook/drawn_map escaping the `rect = ` regex -- fixed in scale_center.)
     if maps:
         targets += [p for p in files if p.endswith('.gas') and _is_map_target(p) and '/dir.lqd22' not in p]
+    if dialogs and read is not None:
+        targets += [p for p in files if p.startswith('ui/interfaces/backend/') and p.endswith('.gas')
+                    and p not in targets and p not in PANEL_TARGETS and not _is_map_target(p)
+                    and is_centered_dialog(read(p))]
     targets = sorted(set(targets))
     if OVERLAY_TARGET not in targets:
         targets.append(OVERLAY_TARGET)
@@ -273,6 +295,8 @@ def _edit_one(d, files, offs, path, scale, version, write_end, log, canvas=None)
         u2 = scale_gridbox(u, scale)
     elif path in PANEL_TARGETS:
         u2 = scale_panel(u, scale)
+    elif path.startswith('ui/interfaces/backend/') and is_centered_dialog(u):
+        u2 = scale_panel(u, scale)          # engine re-centres it on the live screen (see is_centered_dialog)
     elif _is_map_target(path):
         # Cloth-map screens: scale+center the whole screen INCLUDING the [t:object_view] map viewport, so the
         # map grows with its frame. (Blanking on scale was a DXVK bug, fixed by forcing wined3d.)
@@ -328,7 +352,19 @@ def _edit_one(d, files, offs, path, scale, version, write_end, log, canvas=None)
     log(f"OK {path}: {len(u)}->{len(u2)}B, {nch} chunk(s), {where}")
 
 
-def edit_tank(tank, scale=1.5, backup=True, version=None, log=print, canvas=None, panels=True, maps=True):
+def _read_file(d, files, path):
+    """Decompress one tank file (same chunk walk as _edit_one)."""
+    f = files[path]; ct = f['ct']; base = f['dataoff']+0x33c; size = f['size']
+    nch = (size + BLK-1)//BLK; u = b''
+    for i in range(nch):
+        _uc, cs, _pad, rel = struct.unpack('<4I', d[ct+8+16*i:ct+8+16*i+16])
+        dec = zlib.decompressobj(); part = dec.decompress(d[base+rel:base+rel+cs+64])
+        u += part + (d[base+rel+cs:base+rel+cs+16] if i < nch-1 else b'')
+    return u
+
+
+def edit_tank(tank, scale=1.5, backup=True, version=None, log=print, canvas=None, panels=True, maps=True,
+              dialogs=True):
     """Edit a DSg2Tank (.ds2res) in place: scale/center the menu interfaces + inject the overlay.
     Writes a `.pre-edit.bak` next to it (if backup). Requires the exe CRC check disabled.
     `canvas=(w,h)` = the game window's client size to centre into (default: the Linux 1912x1046)."""
@@ -340,7 +376,12 @@ def edit_tank(tank, scale=1.5, backup=True, version=None, log=print, canvas=None
         shutil.copy2(tank, tank+'.pre-edit.bak')
     write_end = [len(d)]   # append cursor for relocated files (list = mutable closure)
     ok = skipped = 0
-    for path in _target_list(files, panels=panels, maps=maps):
+    def _rd(p):
+        try:
+            return _read_file(d, files, p)
+        except Exception:  # noqa: BLE001 -- unreadable entry: not a dialog
+            return b''
+    for path in _target_list(files, panels=panels, maps=maps, dialogs=dialogs, read=_rd):
         if path not in files:
             log(f"SKIP {path}: not in tank"); skipped += 1; continue
         try:

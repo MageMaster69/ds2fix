@@ -416,6 +416,7 @@ def do_patch(gamedir, res_w, res_h, scale, menu169, log=print, borderless=None):
     edit_tank(str(tank), scale=scale, backup=False, canvas=canvas,
               panels=os.environ.get("DS2FIX_PANELS", "1") != "0",   # in-game panel scaling (default on)
               maps=os.environ.get("DS2FIX_MAPS", "1") != "0",       # journal/teleport map scaling (default on)
+              dialogs=os.environ.get("DS2FIX_DIALOGS", "1") != "0", # engine-centred dialogs (Options, tips ...)
               log=lambda m: log("  " + m))
     log("patch complete.")
 

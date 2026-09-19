@@ -54,7 +54,11 @@
    the object_view still held the authored rect. Regex widened to `rect\s*=\s*` (no other target has such
    lines). Verified on Windows 11 at 2560x1440: cloth map inside the scaled page, compass + travel log
    aligned. Not yet driven: teleporter maps and the M-key drawn map (no key opened it on the test box).
-3. **Scale in-game panels** (inventory / character / spellbook / skills) — **DONE in v0.1.10.** The panels
+3. **Scale in-game panels** (inventory / character / spellbook / skills) — **DONE in v0.1.10.** *v0.1.11:* the NPC
+   conversation box and every engine-centred dialog (`centered = <element>;` at interface level: Options + tabs,
+   world tips, backend yes/no dialogs, defeat, save/load, quick-save, trainer/disband/pet-name confirmations,
+   load-quest, end-game — 35 files, auto-discovered) are scaled about the origin; the engine re-centres them on
+   the live screen (verified: Options at 2560x1440). Stores/stash/trade/hire stay native by design. The panels
    (`character_*.gas`, `skills_*_tab.gas`, `character_grids.gas`) are scaled about the top-left origin at the
    UI scale (rects + the pixel-valued fields `max_width/height`, `parent_offset`, `drag_*`, `text_rect_deflate_*`).
    The "item grid cells are fixed-pixel" wall turned out to be an ENGINE SCALE FIELD, not a constant: every
