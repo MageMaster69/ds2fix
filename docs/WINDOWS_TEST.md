@@ -69,6 +69,11 @@ Verify in-game:
 - [x] ✅ **In-game panels** (v0.1.10): inventory / character / spell book / specialties scaled 1.5× (1080p) and
       2× (1440p); item grid cells, icons and the icon carried on the cursor scale; drag from an equipment slot into the grid, move between cells
       and re-equip all work (verified with synthetic input at both resolutions).
+- [x] ✅ **Play session** (v0.1.11, 2560x1440): tutorial beach — NPC conversations (Captain Ogrank, Lt. Jerind)
+      in the 2x-scaled dialogue box with portraits/replies aligned; quest log updates; ESC menu, Options + all four
+      tabs scaled 2x and centred, Cancel; Save Game writes the party file; save + reload mid-map; camera rotate/zoom;
+      ground-click movement across the camp and over the tower. Note for drivers: alt-tabbing into DS2 pauses it
+      ("Game Paused" banner); Space / Pause toggles.
 - [x] ✅ ⭐ **Party leader portrait (member 1):** was black on native D3D9 at 1920x1080 and 2560x1440 in
       v0.1.8 (the stock DS2 "black portrait above 1280 wide" bug, not Wine). **Fixed in v0.1.9** — verified
       for a new hero in play, after an in-game save + reload, and the saved party file. Mechanism and patch
