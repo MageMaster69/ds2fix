@@ -74,7 +74,9 @@ Verify in-game:
       tabs scaled 2x and centred, Cancel; Save Game writes the party file; save + reload mid-map; camera rotate/zoom;
       ground-click movement across the camp and over the tower; quest-marker NPC (Jerind) advances the quest and
       opens the gate; **combat**: right-click a training dummy → it breaks, loot drops, `Z` collects it into the
-      scaled inventory grid; location banner, task/handbook notifications and tutorial-tip pop-ups (scaled) render.
+      scaled inventory grid; three-option NPC dialogue trees; bow equipped by dragging it from the scaled grid
+      onto the ranged slot (stat deltas shown), ranged attack on the archery target (arrows fly and stick);
+      location banner, task/handbook notifications and tutorial-tip pop-ups (scaled) render.
       Note for drivers: alt-tabbing into DS2 pauses it ("Game Paused" banner); Space / Pause toggles.
 - [x] ✅ ⭐ **Party leader portrait (member 1):** was black on native D3D9 at 1920x1080 and 2560x1440 in
       v0.1.8 (the stock DS2 "black portrait above 1280 wide" bug, not Wine). **Fixed in v0.1.9** — verified
