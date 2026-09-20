@@ -56,9 +56,16 @@
    DirectPlay"* prompt and, with it skipped, DS2 crashed (NULL DirectPlay8Server in
    `RSCreateAndLaunchServerSequence`). Stock behaviour on Windows 10/11 (DirectPlay is a disabled legacy
    feature; `dpnet.dll` is a stub). **v0.1.13** detects it (`info`, `play`, GUI) and `ds2fix directplay
-   --enable` turns it on (elevated DISM). **Still to run:** host + join once DirectPlay is enabled (a person
-   has to accept the admin prompt), then direct-IP; see `docs/WINDOWS_TEST.md` §8. *No dedicated server* —
-   DS2 has no such concept (host-based P2P), so that idea is dropped.
+   --enable` turns it on (elevated DISM). *Second pass with DirectPlay on:* hosting works (staging area, map/game settings all
+   render), but two copies on one PC never list each other's rooms and the host's Start button is inert — they
+   share the GameSpy peer port 13139, so the single-machine setup is invalid for the join test. **Needs two
+   machines** (runbook in `docs/WINDOWS_TEST.md` §8). *Internet mode* = the GameSpy peer lobby: **v0.1.14**
+   redirects every `gamespy.com` hostname to OpenSpy (`openspy.net`, same length; the community's standard
+   fix), which gets past "Unable to connect" — the lobby then demands the retail CD key (registry `PID`), which
+   GOG never ships, so GOG users still cannot enter it (`ds2fix info` reports the key state). There is no
+   direct-IP join outside that lobby. Side effect noticed: the MP world defaults to Elite because every
+   difficulty is unlocked — pick Mercenary in Map Settings (candidate fix: default the MP world to Mercenary).
+   *No dedicated server* — DS2 has no such concept (host-based P2P), so that idea is dropped.
 2. **Journal -> Map cloth-map scaling** -- **DONE in v0.1.10.** The whole journal (frame, books, pages), the
    teleporter maps and the M-key drawn map are scaled+centred again, object_view viewports included. The
    long-standing 'map out of line' symptom was never an engine/object_view problem: mapbook.gas and drawn_map.gas

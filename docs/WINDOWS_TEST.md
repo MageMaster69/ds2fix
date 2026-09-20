@@ -123,10 +123,26 @@ side). Run 2026-09-20, ds2fix 0.1.12 from source.
       ds2fix regression. **v0.1.13** detects the stub (`info` → `directplay: NOT enabled`, `play` prints a note,
       the GUI shows a warning line) and `ds2fix directplay --enable` / the GUI's **Enable DirectPlay (admin)…**
       button turns the feature on through an elevated DISM call.
-- [ ] ⬜ Host + join over LAN, then Internet → direct-IP join: **blocked until DirectPlay is enabled** (the UAC
-      prompt has to be accepted by a person). For real LAN play also accept the Windows Firewall exception prompt
-      DS2 raises on entering Multiplayer (loopback on one PC needs no rule). Then: A = Host Game → OK, B = refresh
-      the Game List → select LANTEST → Join Game; check the staging screen + in-game HUD for both.
+- [x] ✅ **With DirectPlay enabled** (2026-09-20, second pass): Host Game → OK now works — the host lands in the
+      **Staging Area** (room LANTEST, party row, chat log, Map Settings with the difficulty list, Game Settings,
+      Party Details) and every one of those screens renders correctly. Note: the world defaults to **Elite**
+      (highest unlocked, a side effect of the difficulty unlock) — hosts should pick Mercenary in Map Settings.
+- [ ] ❌ **Two copies on ONE PC cannot complete a LAN game.** The guest's Game List stays "No games available"
+      after Refresh / Find Games (the guest does broadcast the GameSpy QR2 echo to UDP 6500-6600; the host never
+      answers its 6500 socket), and the host's **Start** button does nothing. Both instances share the GameSpy
+      peer port UDP 13139 with SO_REUSEADDR, so one of them never receives the peer unicast replies — a
+      single-machine artefact, not a ds2fix bug. **Needs two machines** (e.g. host on this Windows box, join from
+      the Linux box): Multiplayer → No (firewall prompt) / Yes for real LAN → Local Network → nickname → Choose
+      Party → Game List; host: Host Game → name → OK → Map Settings: Mercenary → Start; guest: Refresh → select
+      the room → Join Game; then check the staging screen and the in-game HUD on both.
+- [x] ✅ **Internet mode** (v0.1.14): stock DS2's "Internet" option is the GameSpy peer lobby; it resolved
+      `peerchat.gamespy.com`, failed, and showed "Unable to connect". With the new OpenSpy patch (every
+      `gamespy.com` string → `openspy.net`) the DNS step passes and the lobby moves on to the CD-key check.
+- [ ] ❌ **CD key:** the Internet lobby then says "Could not find a valid CDKey. You will require a valid CDKey
+      to play online." The exe reads registry value `PID` under `HKLM\Software\Microsoft\Microsoft Games\DungeonSiege2` (WOW6432Node view). GOG's installer writes no such key (retail/Steam do), so the GOG build
+      cannot enter the Internet lobby as shipped; `ds2fix info` now reports `cd key : not in the registry`.
+      Not a ds2fix regression; there is no direct-IP path outside that lobby (the LAN Join Game button needs a
+      listed room).
 
 ## What to report back
 - Any command that errors (copy the message).

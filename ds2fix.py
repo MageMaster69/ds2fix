@@ -412,6 +412,7 @@ def do_patch(gamedir, res_w, res_h, scale, menu169, log=print, borderless=None):
               ui_scale=scale,
               dyncanvas=os.environ.get("DS2FIX_DYNCANVAS", "1") != "0",   # debug/bisect toggle
               portrait=os.environ.get("DS2FIX_PORTRAIT", "1") != "0",     # leader-portrait fix (default on)
+              openspy=os.environ.get("DS2FIX_OPENSPY", "1") != "0",       # GameSpy -> OpenSpy hostnames (default on)
               log=lambda m: log("  " + m))
     log(f"patching tank (UI scale {scale}, canvas {canvas[0]}x{canvas[1]}) ...")
     shutil.copy2(ptank, tank)
@@ -457,6 +458,8 @@ def do_info(gamedir, log=print):
         mw, mh = _monitor_res()
         log(f"display  : {mw}x{mh} (default render res; borderless window)")
         log(f"directplay: {_directplay.describe()}")
+        from ds2fix_core import cdkey as _cdkey
+        log(f"cd key   : {_cdkey.describe()}")
     log(f"platform : {'windows (borderless window, native D3D9)' if IS_WINDOWS else 'linux (wine/gamescope launch)'}")
 
 

@@ -14,7 +14,7 @@ except ImportError:
 
 def patch_exe(orig, dst=None, menu169=True, choke=True, ws169=True, res_w=1920, res_h=1080,
               version=None, log=print, borderless=False, dyncanvas=True, portrait=True,
-              gridscale=True, ui_scale=None):
+              gridscale=True, ui_scale=None, openspy=True):
     """Patch a pristine DungeonSiege2.exe. `orig`/`dst` are file paths (dst optional -> returns bytes).
     Returns the patched bytes. Raises AssertionError if a patch site doesn't match (wrong/patched exe).
     `borderless`: give the game window a WS_POPUP (no caption/frame) style instead of the non-resizable
@@ -22,6 +22,8 @@ def patch_exe(orig, dst=None, menu169=True, choke=True, ws169=True, res_w=1920, 
     `portrait`: fix the party-leader HUD portrait (see PATCH PORTRAIT; on by default).
     `gridscale`: inventory grids run at `ui_scale` (the panel UI scale; default res_h/720) via the engine's
     own UIGridbox::SetScale (see PATCH GRIDSCALE; on by default).
+    `openspy`: point every GameSpy hostname at the community OpenSpy servers (see PATCH OPENSPY; on by
+    default) so the Internet lobby works again.
     `dyncanvas=False` is a debug/bisect switch only."""
     MENU_169, CHOKE, WS169 = menu169, choke, ws169
     version = version or __version__
@@ -127,6 +129,28 @@ def patch_exe(orig, dst=None, menu169=True, choke=True, ws169=True, res_w=1920, 
         log('OK: Multiplayer button already enabled')
     else:
         log(f'WARN: MP-button site unexpected ({bytes(d[_mp_fo:_mp_fo+5]).hex()}); skipped')
+
+    # ---- PATCH OPENSPY: GameSpy is dead (2014), so the Internet lobby ("Play anonymously over the Internet")
+    # resolves peerchat.gamespy.com, fails and shows "Unable to connect". The community runs DS2 through
+    # OpenSpy (openspy.net), a drop-in re-implementation of the GameSpy services (peerchat lobby, master
+    # list, natneg, presence). The generic OpenSpy fix is to rewrite every "gamespy.com" hostname to
+    # "openspy.net" -- same length, so a pure in-place string swap: peerchat.gamespy.com,
+    # natneg1/2.gamespy.com, %s.master/available/ms%d.gamespy.com, gpcm/gpsp/gamestats.gamespy.com.
+    # (The GameSpy-account button on the provider screen stays hidden by the tank edit; the anonymous
+    # Internet mode needs no account.) Game traffic itself is DirectPlay8 -> the host still forwards ports.
+    _gs, _os_ = b'gamespy.com', b'openspy.net'
+    assert len(_gs) == len(_os_)
+    _gsw, _osw = _gs.decode().encode('utf-16-le'), _os_.decode().encode('utf-16-le')   # motd/vercheck URLs
+    if openspy:
+        _n, _nw = d.count(_gs), d.count(_gsw)
+        if _n:
+            d = bytearray(bytes(d).replace(_gs, _os_).replace(_gsw, _osw))
+            log(f'OK: GameSpy hostnames -> OpenSpy ({_n} x "gamespy.com" -> "openspy.net" + {_nw} wide; '
+                f'Internet lobby revived)')
+        elif d.count(_os_):
+            log('OK: GameSpy hostnames already point at OpenSpy')
+        else:
+            log('WARN: no GameSpy hostname strings found; OpenSpy redirect skipped')
 
     # ---- PATCH PORTRAIT: party-leader (hero) HUD portrait. Stock DS2 bug ("black portrait above 1280 px
     # wide", DS2TroubleshootingGuide 4.1). A portrait is a 64x64 backbuffer pixel-grab taken after an

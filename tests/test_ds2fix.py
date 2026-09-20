@@ -19,7 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from ds2fix_core import __version__, tank, mods, exe_patch, directplay  # noqa: E402
+from ds2fix_core import __version__, tank, mods, exe_patch, directplay, cdkey  # noqa: E402
 
 # A pristine exe, if present on this machine (dev only): $DS2_PRISTINE_EXE, the Linux dev path, or the
 # pinned/auto-detected install's `.ds2fix-pristine` backup (Windows dev box). Never shipped/committed.
@@ -152,6 +152,14 @@ class TestDirectPlay(unittest.TestCase):
         self.assertTrue(directplay.describe("enabled").startswith("enabled"))
         self.assertIn("directplay --enable", directplay.describe("stub"))
         self.assertIn("Legacy Components", directplay.describe("missing"))
+
+    def test_cdkey_check_reports_a_state(self):
+        st = cdkey.present()
+        if os.name == "nt":
+            self.assertIn(st, (True, False))
+        else:
+            self.assertIsNone(st)
+        self.assertIsInstance(cdkey.describe(), str)
 
     def test_cli_has_directplay_command(self):
         import ds2fix
@@ -377,6 +385,18 @@ class TestExePatch(unittest.TestCase):
         p = exe_patch.patch_exe(str(_PRISTINE_EXE), None, gridscale=False, log=lambda m: None)
         self.assertEqual(p[fo(0x7820a2):fo(0x7820a2) + 5], bytes.fromhex('a1 d4 b2 bc 00'))   # off with gridscale
         self.assertEqual(p[fo(0x77dccf):fo(0x77dccf) + 2], bytes.fromhex('74 66'))
+
+    def test_gamespy_hostnames_redirected_to_openspy(self):
+        if not _PRISTINE_EXE.exists():
+            self.skipTest("pristine exe not available")
+        p = exe_patch.patch_exe(str(_PRISTINE_EXE), None, log=lambda m: None)
+        self.assertNotIn(b"gamespy.com", p)
+        for host in (b"peerchat.openspy.net", b"natneg1.openspy.net", b"%s.master.openspy.net", b"gpcm.openspy.net"):
+            self.assertIn(host, p)
+        self.assertIn(b"GameSpy", p)                      # UI labels untouched
+        keep = exe_patch.patch_exe(str(_PRISTINE_EXE), None, openspy=False, log=lambda m: None)
+        self.assertIn(b"peerchat.gamespy.com", keep)
+        self.assertNotIn(b"openspy.net", keep)
 
     def test_save_footprint_check_bypassed(self):
         # IsContentCrcAcceptable (FUN_004139d0) must be forced to "mov al,1 ; ret 4" so saves always
