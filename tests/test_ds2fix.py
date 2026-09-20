@@ -386,6 +386,25 @@ class TestExePatch(unittest.TestCase):
         self.assertEqual(p[fo(0x7820a2):fo(0x7820a2) + 5], bytes.fromhex('a1 d4 b2 bc 00'))   # off with gridscale
         self.assertEqual(p[fo(0x77dccf):fo(0x77dccf) + 2], bytes.fromhex('74 66'))
 
+    def test_mp_content_mismatch_refusal_skipped(self):
+        if not _PRISTINE_EXE.exists():
+            self.skipTest("pristine exe not available")
+        o = 0x4d93ae - 0x400000
+        p = exe_patch.patch_exe(str(_PRISTINE_EXE), None, log=lambda m: None)
+        self.assertEqual(p[o:o+4], bytes([0x84, 0xdb, 0xeb, 0x33]))
+        keep = exe_patch.patch_exe(str(_PRISTINE_EXE), None, mpcontent=False, log=lambda m: None)
+        self.assertEqual(keep[o:o+4], bytes([0x84, 0xdb, 0x74, 0x33]))
+
+    def test_mp_default_world_walks_forwards(self):
+        if not _PRISTINE_EXE.exists():
+            self.skipTest("pristine exe not available")
+        p = exe_patch.patch_exe(str(_PRISTINE_EXE), None, log=lambda m: None)
+        o = 0x4ec157 - 0x400000
+        self.assertEqual(p[o:o+3], bytes([0x8b, 0x06, 0x90]))
+        self.assertEqual(p[0x4ec17d - 0x400000:0x4ec17d - 0x400000 + 3], bytes([0x8b, 0x06, 0x90]))
+        keep = exe_patch.patch_exe(str(_PRISTINE_EXE), None, mpworld=False, log=lambda m: None)
+        self.assertEqual(keep[o:o+3], bytes([0x8b, 0x46, 0x04]))
+
     def test_gamespy_hostnames_redirected_to_openspy(self):
         if not _PRISTINE_EXE.exists():
             self.skipTest("pristine exe not available")

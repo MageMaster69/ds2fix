@@ -63,8 +63,12 @@
    redirects every `gamespy.com` hostname to OpenSpy (`openspy.net`, same length; the community's standard
    fix), which gets past "Unable to connect" — the lobby then demands the retail CD key (registry `PID`), which
    GOG never ships, so GOG users still cannot enter it (`ds2fix info` reports the key state). There is no
-   direct-IP join outside that lobby. Side effect noticed: the MP world defaults to Elite because every
-   difficulty is unlocked — pick Mercenary in Map Settings (candidate fix: default the MP world to Mercenary).
+   direct-IP join outside that lobby. Side effect fixed in **v0.1.15**: the MP world defaulted to Elite because every
+   difficulty is unlocked (room creation walked the world list backwards and took the first unlocked one);
+   PATCH MPWORLD walks it forwards, so new rooms start on Mercenary and hosts pick higher worlds in Map Settings.
+   *Two-machine LAN test (2026-09-20):* the Linux client listed the Windows host's room, so discovery works
+   across machines; the join was refused by DS2's content-id match (ds2fix's UI edits differ per machine) —
+   **v0.1.15** skips that refusal (PATCH MPCONTENT); the staged/in-game join is the next thing to verify.
    *No dedicated server* — DS2 has no such concept (host-based P2P), so that idea is dropped.
 2. **Journal -> Map cloth-map scaling** -- **DONE in v0.1.10.** The whole journal (frame, books, pages), the
    teleporter maps and the M-key drawn map are scaled+centred again, object_view viewports included. The

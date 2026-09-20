@@ -135,6 +135,12 @@ side). Run 2026-09-20, ds2fix 0.1.12 from source.
       the Linux box): Multiplayer → No (firewall prompt) / Yes for real LAN → Local Network → nickname → Choose
       Party → Game List; host: Host Game → name → OK → Map Settings: Mercenary → Start; guest: Refresh → select
       the room → Join Game; then check the staging screen and the in-game HUD on both.
+- [x] ✅ **Two machines, LAN discovery (2026-09-20):** Windows host (this box, 192.168.0.205) in the staging area,
+      Linux client (the user's box, Wine): the client's Game List showed the room and Join Game was attempted.
+- [ ] ❌→✅ **Join refused by the content check:** the client got "The game you are trying to join has been modified.
+      You cannot join it because you don't have required content." (`gamelist_server_content_mismatch_error`):
+      the client compares the host's content id (server key 7) with its own and ds2fix's UI edits differ per
+      machine (scale/canvas). **v0.1.15 PATCH MPCONTENT** skips the refusal (je→jmp @0x4d93b0). Re-test pending.
 - [x] ✅ **Internet mode** (v0.1.14): stock DS2's "Internet" option is the GameSpy peer lobby; it resolved
       `peerchat.gamespy.com`, failed, and showed "Unable to connect". With the new OpenSpy patch (every
       `gamespy.com` string → `openspy.net`) the DNS step passes and the lobby moves on to the CD-key check.

@@ -14,7 +14,7 @@ except ImportError:
 
 def patch_exe(orig, dst=None, menu169=True, choke=True, ws169=True, res_w=1920, res_h=1080,
               version=None, log=print, borderless=False, dyncanvas=True, portrait=True,
-              gridscale=True, ui_scale=None, openspy=True):
+              gridscale=True, ui_scale=None, openspy=True, mpworld=True, mpcontent=True):
     """Patch a pristine DungeonSiege2.exe. `orig`/`dst` are file paths (dst optional -> returns bytes).
     Returns the patched bytes. Raises AssertionError if a patch site doesn't match (wrong/patched exe).
     `borderless`: give the game window a WS_POPUP (no caption/frame) style instead of the non-resizable
@@ -24,6 +24,10 @@ def patch_exe(orig, dst=None, menu169=True, choke=True, ws169=True, res_w=1920, 
     own UIGridbox::SetScale (see PATCH GRIDSCALE; on by default).
     `openspy`: point every GameSpy hostname at the community OpenSpy servers (see PATCH OPENSPY; on by
     default) so the Internet lobby works again.
+    `mpworld`: a hosted multiplayer game defaults to the Mercenary world instead of the highest unlocked one
+    (see PATCH MPWORLD; on by default — a consequence of the difficulty unlock).
+    `mpcontent`: let a client join a multiplayer game whose content id differs from its own (see PATCH
+    MPCONTENT; on by default — ds2fix's UI edits change that id per machine).
     `dyncanvas=False` is a debug/bisect switch only."""
     MENU_169, CHOKE, WS169 = menu169, choke, ws169
     version = version or __version__
@@ -129,6 +133,42 @@ def patch_exe(orig, dst=None, menu169=True, choke=True, ws169=True, res_w=1920, 
         log('OK: Multiplayer button already enabled')
     else:
         log(f'WARN: MP-button site unexpected ({bytes(d[_mp_fo:_mp_fo+5]).hex()}); skipped')
+
+    # ---- PATCH MPWORLD: default world for a hosted multiplayer game. When the host creates a room
+    # (0x4ec13b..), DS2 walks the map's world list (mercenary, veteran, elite) BACKWARDS via the std::list
+    # prev links ([node+4]) and picks the first world the party has unlocked, i.e. the highest one. With
+    # PATCH UNLOCK every world is unlocked, so every new room came up as Elite (level-70+ content) and a fresh
+    # hero could not even start it. Walk the list forwards ([node+0] = next) instead: Mercenary is always
+    # available, so it becomes the default; the host can still pick Veteran/Elite in Map Settings.
+    if mpworld:
+        _mw = [(0x4ec157 - 0x400000, b'\x8b\x46\x04', b'\x8b\x06\x90'),   # mov eax,[esi+4] -> mov eax,[esi]
+               (0x4ec171 - 0x400000, b'\x8b\x76\x04', b'\x8b\x36\x90'),   # mov esi,[esi+4] -> mov esi,[esi]
+               (0x4ec17d - 0x400000, b'\x8b\x46\x04', b'\x8b\x06\x90')]   # found: same node as tested
+        if all(bytes(d[o:o+3]) == old for o, old, new in _mw):
+            for o, old, new in _mw:
+                d[o:o+3] = new
+            log('OK: hosted MP world defaults to Mercenary (world list walked forwards @0x4ec157)')
+        elif all(bytes(d[o:o+3]) == new for o, old, new in _mw):
+            log('OK: MP default world already Mercenary')
+        else:
+            log('WARN: MP default-world site unexpected; skipped')
+
+    # ---- PATCH MPCONTENT: multiplayer content match. Before joining, the client (CanJoinServer, 0x4d9334)
+    # compares the host's advertised content id (server key 7, "%d" of the local content GUID sum, 0x4e9642)
+    # with its own and refuses with "The game you are trying to join has been modified. You cannot join it
+    # because you don't have required content." ds2fix rewrites UI files in Logic.ds2res differently on every
+    # machine (UI scale / canvas), so two ds2fix installs never match even though no gameplay content differs
+    # (verified: Windows host vs Linux client over a real LAN). Skip the refusal: je -> jmp over the error.
+    # The world-availability check right after it is untouched.
+    _mc = 0x4d93ae - 0x400000
+    if mpcontent:
+        if bytes(d[_mc:_mc+4]) == bytes([0x84, 0xdb, 0x74, 0x33]):
+            d[_mc+2] = 0xeb
+            log('OK: MP content-match refusal skipped (join allowed across ds2fix installs @0x4d93b0)')
+        elif bytes(d[_mc:_mc+4]) == bytes([0x84, 0xdb, 0xeb, 0x33]):
+            log('OK: MP content-match refusal already skipped')
+        else:
+            log(f'WARN: MP content-match site unexpected ({bytes(d[_mc:_mc+4]).hex()}); skipped')
 
     # ---- PATCH OPENSPY: GameSpy is dead (2014), so the Internet lobby ("Play anonymously over the Internet")
     # resolves peerchat.gamespy.com, fails and shows "Unable to connect". The community runs DS2 through

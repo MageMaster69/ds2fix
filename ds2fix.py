@@ -413,6 +413,8 @@ def do_patch(gamedir, res_w, res_h, scale, menu169, log=print, borderless=None):
               dyncanvas=os.environ.get("DS2FIX_DYNCANVAS", "1") != "0",   # debug/bisect toggle
               portrait=os.environ.get("DS2FIX_PORTRAIT", "1") != "0",     # leader-portrait fix (default on)
               openspy=os.environ.get("DS2FIX_OPENSPY", "1") != "0",       # GameSpy -> OpenSpy hostnames (default on)
+              mpworld=os.environ.get("DS2FIX_MPWORLD", "1") != "0",       # hosted MP world defaults to Mercenary
+              mpcontent=os.environ.get("DS2FIX_MPCONTENT", "1") != "0",   # join across differing ds2fix installs
               log=lambda m: log("  " + m))
     log(f"patching tank (UI scale {scale}, canvas {canvas[0]}x{canvas[1]}) ...")
     shutil.copy2(ptank, tank)

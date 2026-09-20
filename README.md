@@ -50,6 +50,8 @@ monitor's resolution (the gamescope role), so alt-tab is clean and there is no e
 | Multiplayer button re-enabled (LAN + direct-IP) | `DisableButton` NOP (exe) |
 | Windows 10/11: the DirectPlay legacy feature DS2 multiplayer needs is detected and can be enabled (stock DS2 crashes on Host/Join without it) | `ds2fix directplay --enable` / GUI button (elevated DISM) |
 | Internet lobby points at OpenSpy instead of the dead GameSpy servers (`DS2FIX_OPENSPY=0` to keep stock) | every `gamespy.com` hostname → `openspy.net` (exe, same length) |
+| A hosted multiplayer game defaults to the Mercenary world, not Elite (`DS2FIX_MPWORLD=0` to keep stock) | world list walked forwards at room creation (exe) |
+| LAN/Internet joins work between ds2fix installs (stock refused them: "the game you are trying to join has been modified", because the UI edits change the content id per machine) | content-match refusal skipped (exe; `DS2FIX_MPCONTENT=0` to keep stock) |
 | gamescope cleaned up when the game exits (no lingering compositor) | supervised launcher (`play-ds2.sh` / `ds2fix play`) |
 | Large-Address-Aware (2GB→4GB) so HD-texture mods don't OOM-crash | PE-header bit (exe) |
 | Party-leader HUD portrait renders at any resolution (stock DS2 shows it black above 1280 px wide) | portrait grab-rect patches (exe, both generators) |
@@ -203,6 +205,10 @@ Env: `MENU_169` (0 disables the 16:9 menu), `RES_W`/`RES_H` (forced frontend res
   forward the DirectPlay 8 ports (UDP 2300-2400 and 6073) for Internet games.
 - **Two copies of DS2 on one PC cannot find each other's LAN games** (they share GameSpy's peer port 13139), so
   test LAN with two machines.
+- **Joining checks no content any more.** DS2 refused to join a game whose content id differed ("has been
+  modified... required content"); since ds2fix's own UI edits make every install's id unique, v0.1.15 skips that
+  refusal. Two players with genuinely different gameplay mods can now join each other and may desync; keep
+  mods identical on both sides (`DS2FIX_MPCONTENT=0` restores the stock check).
 - **`object_view` 3D previews — RESOLVED.** The old symptom (blank preview panels / model stuck at the
   800×600 corner) turned out to be two separate causes, both now fixed: (1) **DXVK** blanked the viewport at
   high res — fixed by forcing **wined3d**; (2) the viewport **rect** was left at its native 800×600 position
