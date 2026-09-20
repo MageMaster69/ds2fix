@@ -16,7 +16,8 @@ No Python needed. The install is auto-detected (GOG/Steam registry on Windows; W
 - **In-game panels scaled** (v0.1.10): inventory, character, spell book and specialties panels are scaled with the menus, item grids included. Drag and drop, hover and re-equip all work at the scaled size, and the icon on the cursor while dragging is scaled too.
 - **Journal map scaled** (v0.1.10): the Journal's cloth map (and the teleporter maps) now scale with the journal instead of staying small in the corner.
 - **In-game dialogs scaled** (v0.1.11): the NPC conversation box, the Options menu and its tabs, tutorial tips, yes/no confirmations, defeat, save/load and quick-save dialogs are scaled like the menus (the engine centres them; ds2fix now scales them).
-- Verified end to end on Windows 11 and, for the launcher and menus, on Linux/Wine.
+- **Reset Skill Points mod** (v0.1.12): `ds2fix mods install reset-skills` (or the GUI's Install… → Cancel) fetches the community respec mod, verifies it, and keeps ds2fix's HUD edits on top of it. Mods that replace files ds2fix edits are now rebuilt from a pristine copy on every patch, and multi-file mod zips ask you to `--pick` one.
+- Verified end to end on Windows 11 and on Linux/Wine.
 
 ### Uninstall
 

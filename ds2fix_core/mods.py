@@ -38,8 +38,23 @@ REGISTRY = {
         "globs": ["*hd*edition*texture*", "*hd*texture*", "*ds2*hd*"],
         "sha512": set(),
     },
+    "reset-skills": {
+        "id": 17,
+        "title": "Reset Skill Points - hotbar button that refunds a character's skill points",
+        "url": "https://www.nexusmods.com/dungeonsiegeii/mods/17",
+        "globs": ["*reset*skill*", "mod-resetskills*"],
+        # v3.09 (MrBoonie's update, the current Nexus main file) - also published by its author on GitHub, so
+        # ds2fix can fetch it for you when no download is found. Same bytes either way: SHA512 enforced.
+        "sha512": {"9dd22a2daca7874a652d459131fdc48d767df61d3135f110ebed3b23297d0aa0"
+                   "0d7d740f2a33eecdb435d05dfbec4066268edb6b3355b197c5cc3e356bf55d59"},
+        "direct": "https://raw.githubusercontent.com/iBoonie/DS2BW-ResetPoints/main/Mod-ResetSkills.ds2res",
+        "note": "Replaces the HUD data bar file; ds2fix re-applies its version overlay to the mod's copy on every "
+                "patch. The 30 Broken World skill names in the reset list are ignored by base DS2.",
+    },
 }
 _ARCHIVE_EXTS = (".ds2res", ".zip")
+ORIGINALS = ".ds2fix-mods"      # <gamedir>/.ds2fix-mods/<file>: pristine copy of each installed mod tank
+DOWNLOADS = "downloads"         # <gamedir>/.ds2fix-mods/downloads/: files fetched via a registry `direct` URL
 
 
 def sha512(path, _bufsize=1 << 20):
@@ -107,8 +122,10 @@ def installed_mods(gamedir):
     return _load_manifest(gamedir)
 
 
-def _extract_ds2res(path, resdir):
-    """Place the mod's .ds2res file(s) into Resources/. Accepts a bare .ds2res or a .zip containing them."""
+def _extract_ds2res(path, resdir, pick=None):
+    """Place the mod's .ds2res file(s) into Resources/. Accepts a bare .ds2res or a .zip containing them.
+    A zip with SEVERAL .ds2res (e.g. Storage Vault ships every vault size) needs `pick` - installing all of
+    them at once would load conflicting variants."""
     resdir.mkdir(exist_ok=True)
     out = []
     if path.suffix.lower() == ".ds2res":
@@ -119,6 +136,13 @@ def _extract_ds2res(path, resdir):
             members = [n for n in z.namelist() if n.lower().endswith(".ds2res")]
             if not members:
                 raise SystemExit(f"ds2fix: no .ds2res inside {path.name}")
+            if len(members) > 1:
+                if not pick:
+                    raise SystemExit(f"ds2fix: {path.name} contains {len(members)} .ds2res files - choose ONE with "
+                                     f"--pick <name>:\n  " + "\n  ".join(Path(n).name for n in members))
+                members = [n for n in members if Path(n).name.lower() == pick.lower()]
+                if not members:
+                    raise SystemExit(f"ds2fix: no '{pick}' inside {path.name}")
             for n in members:
                 fn = Path(n).name
                 (resdir / fn).write_bytes(z.read(n))
@@ -128,7 +152,20 @@ def _extract_ds2res(path, resdir):
     return out
 
 
-def install(gamedir, name, src=None, force=False, log=print):
+def _download(gamedir, mod, log):
+    """Fetch a mod that its author publishes at a direct (non-Nexus) URL. SHA512 is enforced by install()."""
+    import urllib.request
+    url = mod["direct"]
+    dest = Path(gamedir) / ORIGINALS / DOWNLOADS / Path(url.split("?")[0]).name
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    log(f"downloading {url}")
+    with urllib.request.urlopen(url, timeout=60) as r, open(dest, "wb") as f:
+        shutil.copyfileobj(r, f)
+    log(f"  -> {dest} ({dest.stat().st_size} bytes)")
+    return dest
+
+
+def install(gamedir, name, src=None, force=False, log=print, pick=None):
     gamedir = Path(gamedir)
     mod = REGISTRY.get(name)
     if not mod:
@@ -140,12 +177,15 @@ def install(gamedir, name, src=None, force=False, log=print):
             raise SystemExit(f"ds2fix: file not found: {path}")
     else:
         cands = _find_candidates(gamedir, mod)
-        if not cands:
+        if cands:
+            path = max(cands, key=lambda p: p.stat().st_mtime)   # newest matching file
+            log(f"found download: {path}")
+        elif mod.get("direct"):
+            path = _download(gamedir, mod, log)
+        else:
             raise SystemExit(
                 f"ds2fix: no download found for '{name}' in your common folders.\n"
                 f"  Download it from {mod['url']} (into ~/Downloads), then re-run — or pass --from <file>.")
-        path = max(cands, key=lambda p: p.stat().st_mtime)   # newest matching file
-        log(f"found download: {path}")
 
     digest = sha512(path)
     known = mod["sha512"]
@@ -160,13 +200,48 @@ def install(gamedir, name, src=None, force=False, log=print):
         log(f"SHA512: {digest}")
         log("  (no known-good hash on record — installing unverified; make sure it came from Nexus.)")
 
-    files = _extract_ds2res(path, gamedir / RESOURCES)
+    files = _extract_ds2res(path, gamedir / RESOURCES, pick=pick)
+    orig = gamedir / ORIGINALS
+    orig.mkdir(exist_ok=True)
+    for fn in files:                                   # pristine copy, so `patch` can rebuild the mod tank
+        shutil.copy2(gamedir / RESOURCES / fn, orig / fn)
     m = _load_manifest(gamedir)
     m[name] = {"id": mod["id"], "title": mod["title"], "files": files, "sha512": digest, "source": str(path)}
     _save_manifest(gamedir, m)
     log(f"installed '{name}': {', '.join(files)} -> Resources/")
-    log("NOTE: adding a mod changes DS2's save content-footprint — existing saves may hide from the load")
-    log("  list until the save-footprint bypass is enabled (docs/TODO.md). Saves on disk are never lost.")
+    if mod.get("note"):
+        log(f"  note: {mod['note']}")
+    log("  (ds2fix's save-footprint bypass keeps your existing saves listed after a mod change; run")
+    log("   `ds2fix patch` so the mod's files get ds2fix's own UI edits where they overlap.)")
+
+
+def repatch(gamedir, edit, log=print):
+    """Rebuild every installed mod tank from its pristine copy and run ds2fix's tank transform on it (`edit`
+    = a callable taking the tank path). Mods that override a file ds2fix also edits (e.g. Reset Skill Points
+    replaces the HUD data bar that carries the version overlay) otherwise silently drop those edits, because
+    a USER-priority tank wins over Logic.ds2res. Idempotent: always starts from the pristine copy."""
+    gamedir = Path(gamedir)
+    m = _load_manifest(gamedir)
+    for name, ent in m.items():
+        for fn in ent.get("files", []):
+            src, dst = gamedir / ORIGINALS / fn, gamedir / RESOURCES / fn
+            if not src.is_file():
+                log(f"mod '{name}': no pristine copy of {fn} (installed by an older ds2fix) — left as is")
+                continue
+            shutil.copy2(src, dst)
+            log(f"mod '{name}': {fn} rebuilt from pristine, applying ds2fix UI edits ...")
+            edit(str(dst))
+
+
+def restore_originals(gamedir, log=print):
+    """Put every installed mod tank back to its pristine (un-ds2fix-edited) copy."""
+    gamedir = Path(gamedir)
+    for name, ent in _load_manifest(gamedir).items():
+        for fn in ent.get("files", []):
+            src = gamedir / ORIGINALS / fn
+            if src.is_file():
+                shutil.copy2(src, gamedir / RESOURCES / fn)
+                log(f"mod '{name}': {fn} restored to its pristine copy")
 
 
 def remove(gamedir, name, log=print):
@@ -177,10 +252,10 @@ def remove(gamedir, name, log=print):
         raise SystemExit(f"ds2fix: '{name}' is not installed.")
     resdir = gamedir / RESOURCES
     for fn in ent.get("files", []):
-        fp = resdir / fn
-        if fp.exists():
-            fp.unlink()
-            log(f"removed Resources/{fn}")
+        for fp in (resdir / fn, gamedir / ORIGINALS / fn):
+            if fp.exists():
+                fp.unlink()
+        log(f"removed Resources/{fn}")
     del m[name]
     _save_manifest(gamedir, m)
     log(f"uninstalled '{name}'.")
@@ -192,6 +267,6 @@ def print_list(gamedir, log=print):
     for name, mod in REGISTRY.items():
         state = "INSTALLED" if name in m else "not installed"
         log(f"  {name:13} [{state:13}] #{mod['id']}  {mod['title']}")
-        log(f"                {mod['url']}")
+        log(f"                {mod['url']}" + ("   (auto-download available)" if mod.get("direct") else ""))
     if m:
         log("Installed files tracked in <gamedir>/.ds2fix-mods.json (remove with `ds2fix mods remove <name>`).")

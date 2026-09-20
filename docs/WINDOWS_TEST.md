@@ -93,6 +93,18 @@ Verify in-game:
       window and places it at (0,0); the log pane shows the patch output and "window placed". **Restore (uninstall)**
       reverts to pristine (confirmed with `ds2fix_windows.exe info`).
 
+## 7. Optional mods
+- [x] ✅ `ds2fix_windows.exe mods list` shows the registry; `mods install reset-skills` with no download present
+      auto-fetches the file from the author's GitHub, SHA512 matches the pinned hash, copies it to `Resources/`
+      and a pristine copy to `.ds2fix-mods/`; `info` lists it; `patch` rebuilds the mod tank and re-injects the
+      version overlay into the mod's `data_bar.gas`.
+- [x] ✅ In-game with the mod: the overlay label still reads `ds2fix <version>`; the reset button sits on the
+      hotbar (bottom-right), its tooltip reads "LEFT-CLICK to unassign all skill points", clicking it opens the
+      Specialties tab, reports "Number of unassigned skill points" and refunds the points. No crash on base DS2.
+- [x] ✅ `mods remove reset-skills` deletes the tank and the pristine copy, empties the manifest; `patch` runs
+      clean without it; re-install works.
+- [ ] ⬜ Storage Vault / HD Textures: need a Nexus login to download — not exercised.
+
 ## What to report back
 - Any command that errors (copy the message).
 - The member-1 portrait result (#4) — the key unknown.

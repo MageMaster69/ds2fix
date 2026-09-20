@@ -218,7 +218,7 @@ class App:
     # ---- mods (file dialog runs on the main thread, install/remove on a worker) ----
     def _mod_install_click(self):
         path = filedialog.askopenfilename(
-            title="Select the downloaded mod file (.ds2res or .zip) — or Cancel to auto-search",
+            title="Select the downloaded mod file (.ds2res or .zip) — or Cancel to auto-search / auto-download",
             filetypes=[("DS2 mod", "*.ds2res *.zip"), ("All files", "*")])
         self.run(lambda: self._modmod.install(self._gd(), self.modname.get(),
                                               src=path or None, force=False, log=self._log))

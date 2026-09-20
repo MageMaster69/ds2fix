@@ -113,14 +113,21 @@ ds2fix can install a couple of community mods, but it **does not distribute them
 yourself (Nexus login required), and ds2fix locates it, **SHA512-verifies** it, copies the `.ds2res` into
 `Resources/`, and tracks it for clean removal (`<gamedir>/.ds2fix-mods.json`). Supported:
 
+- **Reset Skill Points** ([#17](https://www.nexusmods.com/dungeonsiegeii/mods/17)) — a hotbar button that
+  refunds the selected character's skill points (respec). Its author also publishes the file on GitHub, so
+  `ds2fix mods install reset-skills` fetches it for you (SHA512-verified) when no download is found.
 - **Storage Vault** ([#26](https://www.nexusmods.com/dungeonsiegeii/mods/26)) — bigger stash + gold cap.
+  The zip ships every vault size: pick one with `--pick <file.ds2res>`.
 - **HD Textures** ([#29](https://www.nexusmods.com/dungeonsiegeii/mods/29)) — x4 AI-upscaled world art
-  (the Large-Address-Aware patch is what keeps this from OOM-crashing).
+  (the Large-Address-Aware patch is what keeps this from OOM-crashing). 4.5 GB; if the archive is not a
+  zip, extract it and install with `--from <file.ds2res>`.
 
 Download into `~/Downloads`, then `ds2fix mods install <name>` (auto-finds it) — or point at it with
 `--from <file>`. Installing/removing a mod changes DS2's save "content footprint", which normally hides
 existing saves from the load list — but the exe **save-footprint bypass** makes saves always list and load,
-so mods are safe to add and remove with your saves intact.
+so mods are safe to add and remove with your saves intact. A mod that replaces a file ds2fix also edits
+(Reset Skill Points replaces the HUD data bar) keeps working: ds2fix stores a pristine copy of each mod tank
+under `<gamedir>/.ds2fix-mods/` and re-applies its own UI edits to it on every `patch`.
 
 ### Get the binaries
 

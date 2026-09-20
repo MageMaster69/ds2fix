@@ -225,6 +225,9 @@ def insert_overlay(u, version):
 
 
 def parse(d):
+    """DSg2Tank index -> {path: entry}. Each entry carries `dbase`, the tank's data-section offset
+    (header +0x18: 0x33c for GPG's tanks, 0x324 for Tank-Creator mods), so callers never hard-code it."""
+    dbase=struct.unpack('<I',d[0x18:0x1c])[0]
     ds=struct.unpack('<I',d[0x0c:0x10])[0]; fs=struct.unpack('<I',d[0x10:0x14])[0]
     dc=struct.unpack('<I',d[ds:ds+4])[0]; do=struct.unpack('<%dI'%dc,d[ds+4:ds+4+4*dc])
     dirs={}
@@ -244,7 +247,7 @@ def parse(d):
         p=fs+eo; parent,size,dataoff,crc=struct.unpack('<IIII',d[p:p+16]); nl=struct.unpack('<H',d[p+28:p+30])[0]
         name=d[p+30:p+30+nl].split(b'\0')[0].decode('latin1'); full=(dp(parent)+'/'+name).lstrip('/')
         ct=(p+0x1e+nl+1+3)&~3   # chunk table: after null-terminated name, 4-byte aligned
-        files[full]={'entry':p,'dataoff':dataoff,'ct':ct,'size':size}
+        files[full]={'entry':p,'dataoff':dataoff,'ct':ct,'size':size,'dbase':dbase}
         offs.append(dataoff)
     return files, sorted(offs)
 
@@ -258,7 +261,8 @@ def _target_list(files, panels=True, maps=True, dialogs=True, read=None):
     targets = [p for p in files if p.endswith('.gas')
                and any(p.startswith(x) for x in inc)
                and not any(x in p for x in exc)]
-    targets.append('ui/interfaces/backend/in_game_menu/in_game_menu.gas')   # the ESC/pause menu
+    if 'ui/interfaces/backend/in_game_menu/in_game_menu.gas' in files:
+        targets.append('ui/interfaces/backend/in_game_menu/in_game_menu.gas')   # the ESC/pause menu
     # Journal/teleport cloth-map screens: the whole journal (frame + books + pages) plus the teleporter maps
     # are scaled+centred, object_view map viewports included. (The old 'map out of line' symptom was the
     # tab-aligned `rect` lines in mapbook/drawn_map escaping the `rect = ` regex -- fixed in scale_center.)
@@ -269,7 +273,7 @@ def _target_list(files, panels=True, maps=True, dialogs=True, read=None):
                     and p not in targets and p not in PANEL_TARGETS and not _is_map_target(p)
                     and is_centered_dialog(read(p))]
     targets = sorted(set(targets))
-    if OVERLAY_TARGET not in targets:
+    if OVERLAY_TARGET in files and OVERLAY_TARGET not in targets:
         targets.append(OVERLAY_TARGET)
     if panels:
         targets += [p for p in PANEL_TARGETS if p in files and p not in targets]
@@ -279,7 +283,7 @@ def _target_list(files, panels=True, maps=True, dialogs=True, read=None):
 def _edit_one(d, files, offs, path, scale, version, write_end, log, canvas=None):
     """Transform one interface in `d` and write it back — in its slot if it fits, else relocated to the
     end of the tank (removes the per-slot budget limit). Raises on any problem (caller skips it)."""
-    f = files[path]; ct = f['ct']; base = f['dataoff']+0x33c; size = f['size']
+    f = files[path]; ct = f['ct']; base = f['dataoff']+f['dbase']; size = f['size']
     nch = (size + BLK-1)//BLK
     RAW = 16
     u = b''
@@ -326,13 +330,19 @@ def _edit_one(d, files, offs, path, scale, version, write_end, log, canvas=None)
             c = zlib.compress(b[:BLK-RAW], 9); tail = b[BLK-RAW:]; ucf = BLK
         recs.append((ucf, c, tail, off)); off += len(c) + len(tail)
     total = off
-    nxt = min([o for o in offs if o > f['dataoff']], default=f['dataoff']+total+0x10000)
+    # In-place budget: up to the next file's data, AND never into the index (DSg2Tank puts the dirset/fileset
+    # AFTER the data section, so the last file's slot ends where the index begins — Logic.ds2res and every
+    # Tank-Creator mod alike). Anything bigger is relocated to the end of the file instead.
+    ds_off = struct.unpack('<I', d[0x0c:0x10])[0]; fs_off = struct.unpack('<I', d[0x10:0x14])[0]
+    bounds = [o for o in offs if o > f['dataoff']]
+    bounds += [x - f['dbase'] for x in (ds_off, fs_off) if x > base]
+    nxt = min(bounds, default=f['dataoff']+total+0x10000)
     budget = nxt - f['dataoff']
     if total <= budget:
         base_w = base; where = "in-place"
     else:   # relocate the data to the end of the tank (unlimited space)
         base_w = (write_end[0] + 3) & ~3
-        struct.pack_into('<I', d, f['entry']+8, base_w - 0x33c)   # FileEntry.dataoff (rel to 0x33c)
+        struct.pack_into('<I', d, f['entry']+8, base_w - f['dbase'])   # FileEntry.dataoff (rel to the data section)
         write_end[0] = base_w + total
         where = f"relocated@0x{base_w:x}"
     if len(d) < base_w + total:
@@ -354,7 +364,7 @@ def _edit_one(d, files, offs, path, scale, version, write_end, log, canvas=None)
 
 def _read_file(d, files, path):
     """Decompress one tank file (same chunk walk as _edit_one)."""
-    f = files[path]; ct = f['ct']; base = f['dataoff']+0x33c; size = f['size']
+    f = files[path]; ct = f['ct']; base = f['dataoff']+f['dbase']; size = f['size']
     nch = (size + BLK-1)//BLK; u = b''
     for i in range(nch):
         _uc, cs, _pad, rel = struct.unpack('<4I', d[ct+8+16*i:ct+8+16*i+16])

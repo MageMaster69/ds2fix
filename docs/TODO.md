@@ -39,7 +39,13 @@
 - **Uncapped framerate** — `maxfps` launch arg (default 120; `--maxfps 0` = uncapped).
 - **Optional mod installer** — `ds2fix mods list/install/remove` + GUI section; non-bundled, SHA512-verified,
   finds the download in common folders, tracks installs for clean removal. Registered: #26 Storage Vault,
-  #29 HD Textures.
+  #29 HD Textures. *v0.1.12:* #17 Reset Skill Points (auto-download from the author's GitHub, SHA512 pinned;
+  verified live on Windows: hotbar button, tooltip, unassign + points refunded, no crash on base DS2 despite
+  its 30 Broken-World skill names). Mod tanks get a pristine copy in `.ds2fix-mods/` and are rebuilt +
+  re-edited on every `patch` (the reset mod replaces `data_bar.gas`, which carries ds2fix's overlay);
+  `--pick` for multi-file zips; the tank parser now reads the data offset from the header (Tank-Creator
+  mods use 0x324, not 0x33c) and never writes in place past the index. Not verified (Nexus login needed
+  to download): Storage Vault zip layout, HD Textures archive type (4.5 GB; may not be a zip).
 - Save auto-backup + install pinning; cross-platform CLI + GUI + PyInstaller packaging; unit tests (`tests/`).
 
 ## 🟡 Open / optional

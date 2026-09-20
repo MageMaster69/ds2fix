@@ -149,7 +149,76 @@ class TestLauncherDefaults(unittest.TestCase):
         self.assertIn("borderless", note)
 
 
+def _build_tank(entries, dbase=0x324):
+    """Minimal DSg2Tank writer mirroring what tank.parse() reads: header (dirset/fileset/data offsets), a dir
+    tree, one FileEntry per file with a single zlib chunk, data right after the header and the index AFTER the
+    data (the real layout: Logic.ds2res and Tank-Creator mods alike). Enough for parse/_read_file/edit_tank."""
+    dirs = [""]
+    for p in entries:
+        parts = p.split("/")[:-1]
+        for i in range(1, len(parts) + 1):
+            dp = "/".join(parts[:i])
+            if dp not in dirs:
+                dirs.append(dp)
+    ds = bytearray(struct.pack("<I", len(dirs)) + b"\0" * 4 * len(dirs)); dir_eo = {}
+    for i, dp in enumerate(dirs):
+        eo = len(ds); dir_eo[dp] = eo; struct.pack_into("<I", ds, 4 + 4 * i, eo)
+        name = dp.split("/")[-1].encode() if dp else b""
+        parent = 0 if not dp else dir_eo["/".join(dp.split("/")[:-1])]
+        ds += struct.pack("<I", parent) + b"\0" * 12 + struct.pack("<H", len(name)) + name + b"\0"
+        while len(ds) % 4:
+            ds += b"\0"
+    data = bytearray(); fs = bytearray(struct.pack("<I", len(entries)) + b"\0" * 4 * len(entries))
+    for i, (p, content) in enumerate(entries.items()):
+        eo = len(fs); struct.pack_into("<I", fs, 4 + 4 * i, eo)
+        name = p.split("/")[-1].encode(); parent = dir_eo["/".join(p.split("/")[:-1])]
+        c = zlib.compress(content, 9); dataoff = len(data); data += c
+        fs += struct.pack("<IIII", parent, len(content), dataoff, zlib.crc32(content) & 0xffffffff) + b"\0" * 12
+        fs += struct.pack("<H", len(name)) + name + b"\0"
+        while len(fs) % 4:
+            fs += b"\0"
+        fs += struct.pack("<II", len(c), tank.BLK) + struct.pack("<4I", len(content), len(c), 0, 0)
+    while len(data) % 4:                       # keep the index 4-aligned (parse aligns chunk tables absolutely)
+        data += b"\0"
+    hdr = bytearray(dbase); hdr[0:8] = b"DSg2Tank"; struct.pack_into("<I", hdr, 8, 0x00010100)
+    ds_off = dbase + len(data); fs_off = ds_off + len(ds)
+    struct.pack_into("<III", hdr, 0x0c, ds_off, fs_off, len(ds) + len(fs)); struct.pack_into("<I", hdr, 0x18, dbase)
+    return bytes(hdr) + bytes(data) + bytes(ds) + bytes(fs)
+
+
+class TestTankIO(unittest.TestCase):
+    """Round-trip through a Tank-Creator-style tank (data offset 0x324, index after the data)."""
+    DATA_BAR = b"[data_bar]\n{\n\t[t:button,n:button_collect_loot_bg]\n\t{\n\t\trect = 153,567,185,599;\n\t}\n}\n"
+
+    def test_parse_reads_data_offset_from_header_and_roundtrips(self):
+        blob = _build_tank({"ui/interfaces/backend/data_bar/data_bar.gas": self.DATA_BAR, "config/x.gas": b"[x]{}\n"})
+        files, offs = tank.parse(bytearray(blob))
+        self.assertEqual(set(files), {"ui/interfaces/backend/data_bar/data_bar.gas", "config/x.gas"})
+        self.assertEqual(files["config/x.gas"]["dbase"], 0x324)
+        self.assertEqual(tank._read_file(bytearray(blob), files, "ui/interfaces/backend/data_bar/data_bar.gas"),
+                         self.DATA_BAR)
+
+    def test_edit_tank_on_mod_tank_injects_overlay_without_clobbering_the_index(self):
+        blob = _build_tank({"ui/interfaces/backend/data_bar/data_bar.gas": self.DATA_BAR * 40})   # > slack
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "Mod-Test.ds2res"; p.write_bytes(blob)
+            logs = []
+            tank.edit_tank(str(p), scale=2.0, backup=False, canvas=(2560, 1440), version="9.9", log=logs.append)
+            d = bytearray(p.read_bytes()); files, _ = tank.parse(d)          # index still readable
+            u = tank._read_file(d, files, "ui/interfaces/backend/data_bar/data_bar.gas")
+            self.assertIn(b"text_ds2fix", u); self.assertIn(b"ds2fix 9.9", u)
+            self.assertTrue(any("relocated" in m for m in logs), logs)   # grew past its slot -> appended
+            self.assertFalse(any("SKIP" in m for m in logs), logs)       # no noise for absent targets
+
+
 class TestMods(unittest.TestCase):
+    def test_registry_reset_skills_entry(self):
+        import fnmatch
+        m = mods.REGISTRY["reset-skills"]
+        self.assertTrue(any(fnmatch.fnmatch("mod-resetskills.ds2res", g) for g in m["globs"]))
+        self.assertEqual(len(next(iter(m["sha512"]))), 128)
+        self.assertTrue(m["direct"].startswith("https://raw.githubusercontent.com/"))
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.game = Path(self.tmp.name) / "game"

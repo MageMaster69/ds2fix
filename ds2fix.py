@@ -413,11 +413,14 @@ def do_patch(gamedir, res_w, res_h, scale, menu169, log=print, borderless=None):
               log=lambda m: log("  " + m))
     log(f"patching tank (UI scale {scale}, canvas {canvas[0]}x{canvas[1]}) ...")
     shutil.copy2(ptank, tank)
-    edit_tank(str(tank), scale=scale, backup=False, canvas=canvas,
-              panels=os.environ.get("DS2FIX_PANELS", "1") != "0",   # in-game panel scaling (default on)
-              maps=os.environ.get("DS2FIX_MAPS", "1") != "0",       # journal/teleport map scaling (default on)
-              dialogs=os.environ.get("DS2FIX_DIALOGS", "1") != "0", # engine-centred dialogs (Options, tips ...)
-              log=lambda m: log("  " + m))
+    tank_opts = dict(scale=scale, backup=False, canvas=canvas,
+                     panels=os.environ.get("DS2FIX_PANELS", "1") != "0",   # in-game panel scaling (default on)
+                     maps=os.environ.get("DS2FIX_MAPS", "1") != "0",       # journal/teleport map scaling (default on)
+                     dialogs=os.environ.get("DS2FIX_DIALOGS", "1") != "0") # engine-centred dialogs (Options, tips ...)
+    edit_tank(str(tank), log=lambda m: log("  " + m), **tank_opts)
+    from ds2fix_core import mods as _mods
+    _mods.repatch(gamedir, lambda p: edit_tank(p, log=lambda m: log("    " + m), **tank_opts),
+                  log=lambda m: log("  " + m))
     log("patch complete.")
 
 
@@ -428,6 +431,8 @@ def do_restore(gamedir, log=print):
         raise SystemExit("ds2fix: no pristine backup found; nothing to restore.")
     shutil.copy2(pexe, exe)
     shutil.copy2(ptank, tank)
+    from ds2fix_core import mods as _mods
+    _mods.restore_originals(gamedir, log=log)
     log("restored pristine exe + tank.")
 
 
@@ -700,13 +705,14 @@ def build_parser():
                          help="frame cap (DS2 defaults to 75; 0 = uncapped)")
 
     # optional, non-bundled mods (installed from a file you downloaded; verified by SHA512).
-    sp_mods = sub.add_parser("mods", help="list/install/remove optional mods (Storage Vault, HD Textures)")
+    sp_mods = sub.add_parser("mods", help="list/install/remove optional mods (Storage Vault, HD Textures, Reset Skill Points)")
     msub = sp_mods.add_subparsers(dest="modcmd", required=True)
     msub.add_parser("list", help="show available + installed mods")
     mi = msub.add_parser("install", help="install a mod from a downloaded file")
     mi.add_argument("name", help="mod name (see `ds2fix mods list`)")
     mi.add_argument("--from", dest="src", help="path to the downloaded file (else search common folders)")
     mi.add_argument("--force", action="store_true", help="install even if SHA512 isn't in the known-good list")
+    mi.add_argument("--pick", help="which .ds2res to take from a zip that contains several (e.g. a vault size)")
     mr = msub.add_parser("remove", help="remove an installed mod")
     mr.add_argument("name", help="mod name")
     return p
@@ -744,7 +750,7 @@ def main(argv=None):
         if args.modcmd == "list":
             _mods.print_list(gamedir)
         elif args.modcmd == "install":
-            _mods.install(gamedir, args.name, src=args.src, force=args.force)
+            _mods.install(gamedir, args.name, src=args.src, force=args.force, pick=args.pick)
         elif args.modcmd == "remove":
             _mods.remove(gamedir, args.name)
 
