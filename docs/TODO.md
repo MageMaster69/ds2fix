@@ -50,8 +50,15 @@
 
 ## 🟡 Open / optional
 1. **Test normal co-op multiplayer** — host a game + join via **LAN** and **direct-IP** (the MP button is
-   already unlocked; DS2 MP is peer-to-peer over DirectPlay8). *No dedicated server* — DS2 has no such
-   concept (host-based P2P), so that idea is dropped.
+   already unlocked; DS2 MP is peer-to-peer over DirectPlay8). *Windows 11, 2026-09-20:* two instances
+   (`multi=true` skips the single-instance mutex) reach the LAN lobby, see each other, create MP heroes (the
+   MP portrait renders) and open Host Game; pressing OK raised Windows' *"needs the following Windows feature:
+   DirectPlay"* prompt and, with it skipped, DS2 crashed (NULL DirectPlay8Server in
+   `RSCreateAndLaunchServerSequence`). Stock behaviour on Windows 10/11 (DirectPlay is a disabled legacy
+   feature; `dpnet.dll` is a stub). **v0.1.13** detects it (`info`, `play`, GUI) and `ds2fix directplay
+   --enable` turns it on (elevated DISM). **Still to run:** host + join once DirectPlay is enabled (a person
+   has to accept the admin prompt), then direct-IP; see `docs/WINDOWS_TEST.md` §8. *No dedicated server* —
+   DS2 has no such concept (host-based P2P), so that idea is dropped.
 2. **Journal -> Map cloth-map scaling** -- **DONE in v0.1.10.** The whole journal (frame, books, pages), the
    teleporter maps and the M-key drawn map are scaled+centred again, object_view viewports included. The
    long-standing 'map out of line' symptom was never an engine/object_view problem: mapbook.gas and drawn_map.gas

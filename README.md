@@ -48,6 +48,7 @@ monitor's resolution (the gamescope role), so alt-tab is clean and there is no e
 | Saves always list + load, even after re-patching or installing a mod | save content-footprint check bypassed (exe) |
 | Frontend preview models render in their panels (main-menu Continue party, hero-select paperdoll) | frontend `object_view` viewport scaled with its panel (tank) |
 | Multiplayer button re-enabled (LAN + direct-IP) | `DisableButton` NOP (exe) |
+| Windows 10/11: the DirectPlay legacy feature DS2 multiplayer needs is detected and can be enabled (stock DS2 crashes on Host/Join without it) | `ds2fix directplay --enable` / GUI button (elevated DISM) |
 | gamescope cleaned up when the game exits (no lingering compositor) | supervised launcher (`play-ds2.sh` / `ds2fix play`) |
 | Large-Address-Aware (2GB→4GB) so HD-texture mods don't OOM-crash | PE-header bit (exe) |
 | Party-leader HUD portrait renders at any resolution (stock DS2 shows it black above 1280 px wide) | portrait grab-rect patches (exe, both generators) |
@@ -189,6 +190,11 @@ Env: `MENU_169` (0 disables the 16:9 menu), `RES_W`/`RES_H` (forced frontend res
 `analyzeHeadless <proj> ds2 -process DungeonSiege2.exe -noanalysis -scriptPath ghidra -postScript X.java`.
 
 ## Known issues
+- **Multiplayer on Windows 10/11 needs the DirectPlay legacy feature.** It is off by default; the first Host/Join
+  pops Windows' "needs the following Windows feature: DirectPlay" installer and, if that is skipped, stock DS2
+  crashes. `ds2fix info` reports `directplay: NOT enabled`, `ds2fix play` prints a note, and
+  `ds2fix directplay --enable` (or the GUI's **Enable DirectPlay (admin)…**) turns it on through DISM with a UAC
+  prompt. Nothing else on the system is changed. Linux/Wine has its own DirectPlay.
 - **`object_view` 3D previews — RESOLVED.** The old symptom (blank preview panels / model stuck at the
   800×600 corner) turned out to be two separate causes, both now fixed: (1) **DXVK** blanked the viewport at
   high res — fixed by forcing **wined3d**; (2) the viewport **rect** was left at its native 800×600 position

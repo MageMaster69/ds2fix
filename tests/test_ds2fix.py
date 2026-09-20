@@ -19,7 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from ds2fix_core import __version__, tank, mods, exe_patch  # noqa: E402
+from ds2fix_core import __version__, tank, mods, exe_patch, directplay  # noqa: E402
 
 # A pristine exe, if present on this machine (dev only): $DS2_PRISTINE_EXE, the Linux dev path, or the
 # pinned/auto-detected install's `.ds2fix-pristine` backup (Windows dev box). Never shipped/committed.
@@ -127,6 +127,37 @@ class TestTankTransform(unittest.TestCase):
         self.assertIn(b"text_ds2fix", once)
         self.assertIn(b"ds2fix 0.1.5", once)
         self.assertEqual(once, tank.insert_overlay(once, "0.1.5"))   # second call is a no-op
+
+
+class TestDirectPlay(unittest.TestCase):
+    def test_stub_detection(self):
+        with tempfile.TemporaryDirectory() as d:
+            stub = Path(d) / "dpnet.dll"
+            stub.write_bytes(b"MZ" + b"\0" * 512 + "DirectPlay Stub".encode("utf-16-le") + b"\0" * 64)
+            self.assertTrue(directplay.is_stub(stub))
+            real = Path(d) / "dpnet_real.dll"
+            real.write_bytes(b"MZ" + b"\0" * (directplay.STUB_MAX + 1024))   # big, no marker
+            self.assertFalse(directplay.is_stub(real))
+            small = Path(d) / "dpnet_small.dll"
+            small.write_bytes(b"MZ" + b"\0" * 512)                        # small but not the FoD stub
+            self.assertFalse(directplay.is_stub(small))
+            self.assertFalse(directplay.is_stub(Path(d) / "missing.dll"))
+
+    def test_status_and_describe(self):
+        st = directplay.status()
+        if os.name == "nt":
+            self.assertIn(st, ("enabled", "stub", "missing"))
+        else:
+            self.assertEqual(st, "n/a")
+        self.assertTrue(directplay.describe("enabled").startswith("enabled"))
+        self.assertIn("directplay --enable", directplay.describe("stub"))
+        self.assertIn("Legacy Components", directplay.describe("missing"))
+
+    def test_cli_has_directplay_command(self):
+        import ds2fix
+        a = ds2fix.build_parser().parse_args(["directplay", "--enable"])
+        self.assertEqual(a.cmd, "directplay"); self.assertTrue(a.enable)
+        self.assertFalse(ds2fix.build_parser().parse_args(["directplay"]).enable)
 
 
 class TestLauncherDefaults(unittest.TestCase):

@@ -105,6 +105,29 @@ Verify in-game:
       clean without it; re-install works.
 - [ ] ⬜ Storage Vault / HD Textures: need a Nexus login to download — not exercised.
 
+## 8. LAN / direct-IP multiplayer (two instances on one PC)
+Setup: `ds2fix_windows.exe patch --res 1280x720`, then start two copies of the game with the launch arg
+`multi=true` (skips DS2's single-instance mutex; `ds2-scratch/twoinst.py` launches both 1280x720 windows side by
+side). Run 2026-09-20, ds2fix 0.1.12 from source.
+- [x] ✅ Main menu → Multiplayer → Local Network → nickname: both instances reach the LAN lobby ("Guest has
+      joined the portal"), see each other under **Room**; the lobby, chat, Party Selection and the notice dialogs
+      render correctly at 1280x720 / scale 1.
+- [x] ✅ **Party Creation** (multiplayer hero): name, race/gender/appearance/hair, Accept → the hero is listed with
+      its portrait top-left (the MP portrait renders, like the single-player one since v0.1.9).
+- [x] ✅ **Game List → Host Game** dialog (name, password, Classic / Couples / Party mode) renders correctly.
+- [ ] ❌ **Host Game → OK with DirectPlay off:** Windows pops *"An app on your PC needs the following Windows
+      feature: DirectPlay"*. Choosing *Skip this installation* makes DS2 **crash** (access violation in
+      `Flick::FlickManager::RSCreateAndLaunchServerSequence`, NULL `DirectPlay8Server` — see
+      `Documents\My Games\Dungeon Siege 2\Logs\DungeonSiege2.crash`). That is stock DS2 on Windows 10/11, where
+      DirectPlay is a disabled legacy feature and `SysWOW64\dpnet.dll` is a 10 KB "DirectPlay Stub" — not a
+      ds2fix regression. **v0.1.13** detects the stub (`info` → `directplay: NOT enabled`, `play` prints a note,
+      the GUI shows a warning line) and `ds2fix directplay --enable` / the GUI's **Enable DirectPlay (admin)…**
+      button turns the feature on through an elevated DISM call.
+- [ ] ⬜ Host + join over LAN, then Internet → direct-IP join: **blocked until DirectPlay is enabled** (the UAC
+      prompt has to be accepted by a person). For real LAN play also accept the Windows Firewall exception prompt
+      DS2 raises on entering Multiplayer (loopback on one PC needs no rule). Then: A = Host Game → OK, B = refresh
+      the Game List → select LANTEST → Join Game; check the staging screen + in-game HUD for both.
+
 ## What to report back
 - Any command that errors (copy the message).
 - The member-1 portrait result (#4) — the key unknown.

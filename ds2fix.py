@@ -12,12 +12,14 @@ borderless window at the monitor's resolution on Windows (alt-tab friendly; no e
   ds2fix play --no-menu169      # keep native 800x600 menu (fixes previews)
   ds2fix restore                # revert to pristine
   ds2fix info                   # show patch state
+  ds2fix directplay --enable    # Windows: turn on the DirectPlay feature DS2 multiplayer needs
 """
 import argparse, os, re, shutil, struct, subprocess, sys, time
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from ds2fix_core import patch_exe, edit_tank, __version__
+from ds2fix_core import directplay as _directplay
 
 IS_WINDOWS = os.name == "nt"
 EXE_NAME = "DungeonSiege2.exe"
@@ -454,6 +456,7 @@ def do_info(gamedir, log=print):
     if IS_WINDOWS:
         mw, mh = _monitor_res()
         log(f"display  : {mw}x{mh} (default render res; borderless window)")
+        log(f"directplay: {_directplay.describe()}")
     log(f"platform : {'windows (borderless window, native D3D9)' if IS_WINDOWS else 'linux (wine/gamescope launch)'}")
 
 
@@ -631,6 +634,9 @@ def do_play(gamedir, res_w, res_h, out_w, out_h, fsr, maxfps=120, spawn=False, l
     cmd, env, note = play_command(gamedir, res_w, res_h, out_w, out_h, fsr, maxfps)
     log(f"launching ({note}) ...")
     if IS_WINDOWS:
+        if _directplay.needs_enable():
+            log("note: Windows' DirectPlay feature is off — single player is fine, but multiplayer Host/Join "
+                "crashes without it; run `ds2fix directplay --enable` (GUI: Enable DirectPlay).")
         # Borderless window: spawn, then place the window once it exists (GUI: in the background; CLI:
         # block until the game exits, like the Linux gamescope supervisor).
         proc = subprocess.Popen(cmd, cwd=str(gamedir), env=env)
@@ -715,6 +721,8 @@ def build_parser():
     mi.add_argument("--pick", help="which .ds2res to take from a zip that contains several (e.g. a vault size)")
     mr = msub.add_parser("remove", help="remove an installed mod")
     mr.add_argument("name", help="mod name")
+    sp_dp = sub.add_parser("directplay", help="Windows: check / enable the DirectPlay feature DS2 multiplayer needs")
+    sp_dp.add_argument("--enable", action="store_true", help="enable it now (UAC admin prompt; runs DISM)")
     return p
 
 
@@ -725,6 +733,12 @@ def main(argv=None):
         return
     if args.cmd == "unpin":
         unpin(); print("ds2fix: install unpinned (will re-detect next run)."); return
+    if args.cmd == "directplay":   # no game dir needed
+        if args.enable:
+            _directplay.enable()
+        else:
+            print(f"directplay: {_directplay.describe()}")
+        return
     gamedir = detect_gamedir(args.gamedir)
     if args.cmd == "info":
         do_info(gamedir)

@@ -39,6 +39,14 @@ class App:
         ttk.Button(row, text="Detect", command=self.detect).pack(side="left")
         self.state = ttk.Label(top, text="")
         self.state.pack(anchor="w", padx=6, pady=(0, 6))
+        self.btn_dp = None
+        if core.IS_WINDOWS:   # DS2 multiplayer needs the DirectPlay legacy feature (off by default on Win 10/11)
+            dprow = ttk.Frame(top); dprow.pack(fill="x", padx=6, pady=(0, 6))
+            self.btn_dp = ttk.Button(dprow, text="Enable DirectPlay (admin)…",
+                                     command=lambda: self.run(self._enable_directplay))
+            self.btn_dp.pack(side="left")
+            self.dp_label = ttk.Label(dprow, text="")
+            self.dp_label.pack(side="left", padx=8)
 
         # --- options ---
         opt = ttk.LabelFrame(root, text="Options")
@@ -145,8 +153,17 @@ class App:
         for b in (self.btn_patch, self.btn_playonly, self.btn_play, self.btn_restore,
                   self.btn_bkup, self.btn_rsav, self.btn_modinstall, self.btn_modremove, self.btn_modlist):
             b.configure(state="normal" if enabled else "disabled")
+        if self.btn_dp is not None:
+            self.btn_dp.configure(state="normal" if enabled and core._directplay.needs_enable() else "disabled")
 
     def refresh_state(self):
+        if self.btn_dp is not None:
+            st = core._directplay.status()
+            self.dp_label.configure(
+                text="DirectPlay (needed for multiplayer): " + ("enabled" if st == "enabled" else
+                     "NOT enabled — multiplayer Host/Join would crash (UAC prompt to enable)"),
+                foreground="#666" if st == "enabled" else "#a40")
+            self.btn_dp.configure(state="disabled" if st == "enabled" else "normal")
         try:
             gd = self._gd()
             patched = core._exe_is_patched(gd / core.EXE_NAME)
@@ -190,6 +207,9 @@ class App:
 
     def _restore(self):
         core.do_restore(self._gd(), log=self._log)
+
+    def _enable_directplay(self):
+        core._directplay.enable(log=self._log)
 
     def _maxfps(self):
         try:

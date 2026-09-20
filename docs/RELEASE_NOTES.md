@@ -17,6 +17,7 @@ No Python needed. The install is auto-detected (GOG/Steam registry on Windows; W
 - **Journal map scaled** (v0.1.10): the Journal's cloth map (and the teleporter maps) now scale with the journal instead of staying small in the corner.
 - **In-game dialogs scaled** (v0.1.11): the NPC conversation box, the Options menu and its tabs, tutorial tips, yes/no confirmations, defeat, save/load and quick-save dialogs are scaled like the menus (the engine centres them; ds2fix now scales them).
 - **Reset Skill Points mod** (v0.1.12): `ds2fix mods install reset-skills` (or the GUI's Install… → Cancel) fetches the community respec mod, verifies it, and keeps ds2fix's HUD edits on top of it. Mods that replace files ds2fix edits are now rebuilt from a pristine copy on every patch, and multi-file mod zips ask you to `--pick` one.
+- **DirectPlay check** (v0.1.13): DS2 multiplayer (LAN and direct-IP) runs on DirectPlay 8, which Windows 10/11 leave off; stock DS2 crashes on Host/Join if the Windows install prompt is skipped. ds2fix now reports it (`info`, `play`, GUI) and `ds2fix directplay --enable` / the GUI's **Enable DirectPlay (admin)…** button turns the feature on (one elevated DISM call, nothing else touched).
 - Verified end to end on Windows 11 and on Linux/Wine.
 
 ### Uninstall
